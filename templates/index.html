@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+
+{% block title %}AWS ScanBox — FinOps{% endblock %}
+{% block page_title %}<span data-i18n="page_dashboard">FinOps Dashboard</span>{% endblock %}
+
+{% block nav_dashboard %}
+<a class="nav-item active" data-section="dashboard" href="/#dashboard">
+  <span class="nav-icon">▦</span>
+  <span class="nav-label" data-i18n="nav_dashboard">Dashboard</span>
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="page-body" id="pageBody">
+
+  <!-- ===== SECTION: Dashboard ===== -->
+  <div class="page-section" id="section-dashboard">
+
+    <!-- Favorites Bar -->
+    <div class="favorites-bar">
+      <div class="favorites-bar-header">
+        <div class="favorites-bar-label">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none" style="color:var(--accent)"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          <span data-i18n="fav_label">Favorite Accounts</span>
+        </div>
+        <button class="btn btn-primary btn-sm" id="analyzeBtn" onclick="analyzeFavorites()" disabled data-i18n="profile_analyze">Analyze</button>
+      </div>
+      <div class="favorites-chips" id="favoritesChips">
+        <span class="fav-empty" data-i18n="fav_empty">No favorites yet — star a profile below</span>
+      </div>
+    </div>
+
+    <!-- All Profiles — Collapsible -->
+    <div class="all-profiles-section" id="allProfilesSection">
+      <div class="all-profiles-toggle" onclick="toggleAllProfiles()">
+        <div class="all-profiles-toggle-left">
+          <span class="all-profiles-label" data-i18n="profile_selector_label">AWS Profiles</span>
+          <span class="all-profiles-count" id="profileCount">—</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font-size:11px;color:var(--text-muted)" id="selectedCount"></span>
+          <button class="btn btn-primary btn-sm" id="analyzeSelectedBtn"
+                  onclick="analyzeSelected();event.stopPropagation()" disabled
+                  data-i18n="profile_analyze_sel">Analyze Selected</button>
+          <span class="all-profiles-chevron">▼</span>
+        </div>
+      </div>
+      <div class="all-profiles-body">
+        <div class="all-profiles-actions">
+          <button class="btn btn-outline btn-sm" onclick="selectAllProfiles()" data-i18n="profile_select_all">Select All</button>
+          <button class="btn btn-outline btn-sm" onclick="clearProfiles()" data-i18n="profile_clear">Clear</button>
+          <button class="btn btn-outline btn-sm" onclick="favoriteSelected()" data-i18n="fav_selected" style="display:inline-flex;align-items:center;gap:5px">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+            Star Selected
+          </button>
+        </div>
+
+        <!-- Profile Search -->
+        <div class="profile-search-container">
+          <div class="profile-search-wrapper">
+            <span class="profile-search-icon">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            </span>
+            <input type="text"
+                   id="profileSearchInput"
+                   class="profile-search-input"
+                   data-i18n="profile_search_placeholder"
+                   placeholder="Search profiles..."
+                   oninput="onProfileSearch(this.value)"
+                   autocomplete="off"
+                   spellcheck="false">
+            <button id="profileSearchClear"
+                    class="profile-search-clear"
+                    style="display:none"
+                    onclick="clearProfileSearch()"
+                    aria-label="Clear search">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="profile-grid" id="profileList">
+          <div style="color:var(--text-muted);font-size:13px;padding:10px">Loading profiles...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SSO / Credential Warning Banner -->
+    <div id="finopsSsoBanner" style="display:none;background:#3d1a1a;border:1px solid #c0392b;border-radius:8px;padding:8px 14px;margin-bottom:10px;font-size:12px;color:#f5c6c6;align-items:center;gap:8px;flex-wrap:wrap">
+      <span id="finopsSsoBannerMsg" style="display:contents"></span>
+    </div>
+
+    <!-- Inline loading banner (non-blocking) -->
+    <div id="analyzeLoading" style="display:none"></div>
+
+    <!-- Anomaly Banners (populated after analyze) -->
+    <div id="anomalyContainer"></div>
+
+    <!-- Metric Cards -->
+    <div class="metric-grid" id="metricCards">
+      <!-- Empty state before analyze -->
+      <div class="metric-card" style="grid-column:1/-1;text-align:center;padding:40px">
+        <div class="state-empty">
+          <div class="state-empty-icon">
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg>
+          </div>
+          <div class="state-empty-text" data-i18n="state_select_profiles">Select profiles to analyze</div>
+          <div class="state-empty-sub" data-i18n="state_select_profiles_sub">Choose one or more profiles above and click "Analyze".</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Cost History Chart -->
+    <div class="chart-card">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title" data-i18n="chart_history">Cost History</div>
+          <div class="chart-subtitle">Monthly aggregated cost per profile</div>
+        </div>
+        <div class="chart-controls">
+          <button class="period-btn" data-period="3m" onclick="setPeriod('3m')">3M</button>
+          <button class="period-btn" data-period="6m" onclick="setPeriod('6m')">6M</button>
+          <button class="period-btn active" data-period="12m" onclick="setPeriod('12m')">12M</button>
+        </div>
+      </div>
+      <div class="chart-container">
+        <canvas id="historyChart"></canvas>
+      </div>
+    </div>
+
+    <!-- Monthly Breakdown Table -->
+    <div id="breakdownContainer"></div>
+
+  </div>
+  <!-- /section-dashboard -->
+
+  <!-- ===== SECTION: Reports ===== -->
+  <div class="page-section" id="section-reports" style="display:none">
+    <div class="table-card">
+      <div class="table-card-header">
+        <div class="table-card-title" data-i18n="report_saved">Reports</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <button class="btn btn-sm" id="finopsDeleteSelectedBtn" onclick="finopsDeleteSelected()"
+                  style="display:none;background:#dc262615;color:#dc2626;border:1px solid #dc262630;gap:5px;font-size:11px;font-weight:600;transition:all .2s;align-items:center">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            <span>Delete selected</span>
+          </button>
+          <button class="btn btn-outline btn-sm" onclick="loadReportsList()" title="Refresh">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+          </button>
+        </div>
+      </div>
+      <div style="overflow-x:auto">
+        <table class="data-table" id="finopsReportTable" style="display:none">
+          <thead>
+            <tr>
+              <th style="width:36px;text-align:center">
+                <input type="checkbox" id="finopsReportSelectAll" onchange="finopsToggleAll(this)"
+                       style="accent-color:var(--accent);width:14px;height:14px;cursor:pointer">
+              </th>
+              <th>DATE</th>
+              <th>FORMATS</th>
+              <th style="width:40px"></th>
+            </tr>
+          </thead>
+          <tbody id="finopsReportBody"></tbody>
+        </table>
+        <div id="finopsReportEmpty" style="padding:40px;text-align:center;font-size:13px;color:var(--text-muted);display:none">
+          No reports yet — analyze profiles first.
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- /section-reports -->
+
+</div>
+<!-- /page-body -->
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="/static/js/dashboard.js"></script>
+{% endblock %}

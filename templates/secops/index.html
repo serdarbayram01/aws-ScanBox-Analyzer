@@ -1,0 +1,499 @@
+{% extends "base.html" %}
+
+{% block title %}SecOps — AWS ScanBox{% endblock %}
+{% block page_title %}<span data-i18n="secops_title">Security Operations</span>{% endblock %}
+{% block page_subtitle %}<span data-i18n="secops_subtitle">AWS Security Compliance & Audit</span>{% endblock %}
+
+{% block sidebar_sections %}
+<div class="nav-section-label" data-i18n="nav_section_main">Main</div>
+<a class="nav-item active" data-section="dashboard" href="/secops#dashboard">
+  <span class="nav-icon">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+      <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+    </svg>
+  </span>
+  <span class="nav-label" data-i18n="nav_dashboard">Dashboard</span>
+</a>
+
+<div class="nav-section-label" data-i18n="nav_section_tools">Tools</div>
+<a class="nav-item" data-section="reports" href="/secops#reports">
+  <span class="nav-icon">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+      <polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+    </svg>
+  </span>
+  <span class="nav-label" data-i18n="nav_reports">Reports</span>
+</a>
+
+<div class="nav-section-label" data-i18n="nav_section_help">Help</div>
+<a class="nav-item" href="/secops/guide">
+  <span class="nav-icon">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+      <line x1="9" y1="9" x2="15" y2="9"/><line x1="9" y1="13" x2="13" y2="13"/>
+    </svg>
+  </span>
+  <span class="nav-label" data-i18n="nav_guide">Setup Guide</span>
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="page-body" id="pageBody">
+
+  <!-- ===== SECTION: Dashboard ===== -->
+  <div class="page-section" id="section-dashboard">
+
+    <!-- Profile Selector -->
+    <div class="all-profiles-section open" id="profileSection">
+      <div class="all-profiles-toggle" onclick="toggleProfileSection()">
+        <div class="all-profiles-toggle-left">
+          <span class="all-profiles-label" data-i18n="profile_selector_label">AWS Profiles</span>
+          <span class="all-profiles-count" id="profileCount">—</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font-size:11px;color:var(--text-muted)" id="selectedProfileLabel"></span>
+          <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-muted);cursor:pointer" onclick="event.stopPropagation()">
+            <input type="checkbox" id="excludeDefaults" style="accent-color:var(--accent)">
+            <span data-i18n="secops_exclude_defaults">Exclude default AWS resources</span>
+          </label>
+          <!-- Region picker -->
+          <div class="region-picker" id="regionPicker" style="position:relative" onclick="event.stopPropagation()">
+            <button class="btn btn-outline btn-sm" id="regionPickerBtn" onclick="toggleRegionDropdown()" style="min-width:110px;text-align:left">
+              <span id="regionPickerLabel" data-i18n="secops_all_regions">All Regions</span> <span style="float:right;opacity:.6">▼</span>
+            </button>
+            <div id="regionDropdown" style="display:none;position:absolute;right:0;top:calc(100% + 4px);z-index:9999;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;width:210px;max-height:320px;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.4)">
+              <div id="regionDropdownContent" style="font-size:11px;color:var(--text-muted)">
+                <span class="spinner" style="padding:12px"></span>
+              </div>
+            </div>
+          </div>
+          <button class="btn btn-primary btn-sm" id="scanBtn" disabled
+                  onclick="startScan();event.stopPropagation()" data-i18n="secops_scan">Start Scan</button>
+          <span class="all-profiles-chevron">▼</span>
+        </div>
+      </div>
+      <div class="all-profiles-body">
+        <!-- Profile Search -->
+        <div class="profile-search-container">
+          <div class="profile-search-wrapper">
+            <span class="profile-search-icon">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            </span>
+            <input type="text"
+                   id="secopsProfileSearchInput"
+                   class="profile-search-input"
+                   data-i18n="profile_search_placeholder"
+                   placeholder="Search profiles..."
+                   oninput="onSecopsProfileSearch(this.value)"
+                   autocomplete="off"
+                   spellcheck="false">
+            <button id="secopsProfileSearchClear"
+                    class="profile-search-clear"
+                    style="display:none"
+                    onclick="clearSecopsProfileSearch()"
+                    aria-label="Clear search">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="profile-grid" id="profileList">
+          <div style="color:var(--text-muted);font-size:13px;padding:10px;grid-column:1/-1">
+            <span class="spinner"></span> <span data-i18n="state_loading">Loading...</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Cache / API Status Banner -->
+    <div id="cacheBanner" style="display:none"></div>
+
+    <!-- Scan progress banner (non-blocking, inline) -->
+    <div id="scanProgressBanner" style="display:none;margin-bottom:16px">
+      <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:14px 18px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <span id="loadingMsg" style="font-size:13px;font-weight:600;color:var(--text-primary)">Scanning...</span>
+          <span id="progressPct" style="font-size:12px;color:var(--accent);font-weight:600">0%</span>
+        </div>
+        <div style="background:var(--bg-base);border-radius:4px;height:8px;overflow:hidden">
+          <div id="progressBar" style="height:100%;background:linear-gradient(90deg,var(--accent),#f0c040);border-radius:4px;transition:width .3s;width:0%"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:6px">
+          <span id="progressService" style="font-size:11px;color:var(--text-muted)"></span>
+          <span id="progressCount" style="font-size:11px;color:var(--text-muted)"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- SSO / Credential Warning Banner -->
+    <div id="ssoBanner" style="display:none;background:#3d1a1a;border:1px solid #c0392b;border-radius:8px;padding:8px 14px;margin-bottom:10px;font-size:12px;color:#f5c6c6;align-items:center;gap:8px;flex-wrap:wrap">
+      <span id="ssoBannerMsg" style="display:contents"></span>
+    </div>
+
+    <!-- Profile / Account Info Bar (shown after scan) -->
+    <div id="scanInfoBar" style="display:none;margin-bottom:16px;padding:10px 16px;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;display:none;align-items:center;gap:20px;flex-wrap:wrap">
+      <span style="display:flex;align-items:center;gap:8px;font-size:13px">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <span style="color:var(--text-muted)">Profile:</span>
+        <span id="infoProfile" style="font-weight:600;color:var(--text-primary)">—</span>
+      </span>
+      <span style="display:flex;align-items:center;gap:8px;font-size:13px">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+        <span style="color:var(--text-muted)">Account ID:</span>
+        <code id="infoAccountId" style="font-size:12px;font-family:monospace;color:var(--accent);font-weight:700">—</code>
+      </span>
+      <span style="display:flex;align-items:center;gap:8px;font-size:13px">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        <span style="color:var(--text-muted)">Scan:</span>
+        <span id="infoScanTime" style="color:var(--text-secondary);font-size:12px">—</span>
+      </span>
+    </div>
+
+    <!-- Scan History — Collapsible -->
+    <div class="all-profiles-section" id="scanHistorySection" style="margin-bottom:16px">
+      <div class="all-profiles-toggle" onclick="toggleScanHistory()">
+        <div class="all-profiles-toggle-left">
+          <span class="all-profiles-label" data-i18n="secops_scan_history">Scan History</span>
+          <span class="all-profiles-count" id="scanHistoryCount">—</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <button class="btn btn-outline btn-sm" onclick="loadCachedScans();event.stopPropagation()" title="Refresh" style="font-size:10px;padding:2px 8px">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+          </button>
+          <span class="all-profiles-chevron">&#9660;</span>
+        </div>
+      </div>
+      <div class="all-profiles-body">
+        <div id="scanHistoryList" style="padding:8px 0">
+          <div style="text-align:center;padding:16px;color:var(--text-muted);font-size:12px" data-i18n="state_loading">Loading...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Summary Metric Cards -->
+    <div class="metric-grid" id="metricCards">
+      <div class="metric-card" style="grid-column:1/-1;text-align:center;padding:40px">
+        <div class="state-empty">
+          <div class="state-empty-icon">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.3" stroke-linecap="round">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            </svg>
+          </div>
+          <div class="state-empty-text" data-i18n="secops_empty_title">Select a profile and start scan</div>
+          <div class="state-empty-sub" data-i18n="secops_empty_sub">Choose an AWS profile above and click "Start Scan" to run security checks.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- NOT_AVAILABLE Banner (hidden until scan) -->
+    <div id="naBanner" style="display:none;margin-bottom:12px"></div>
+
+    <!-- Row 1: Radar | Service Coverage | Service Distribution (hidden until scan) -->
+    <div id="radarSection" style="display:none;margin-bottom:12px">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+
+        <!-- Capability Radar -->
+        <div class="chart-card" style="display:flex;flex-direction:column" id="radarCard">
+          <div class="chart-header" style="padding:8px 14px">
+            <div>
+              <div class="chart-title" data-i18n="secops_radar_title">Capability Radar</div>
+            </div>
+            <div class="chart-controls" style="display:flex;align-items:center;gap:6px">
+              <button class="period-btn active" id="radarTabFw" onclick="switchRadarTab('framework')" data-i18n="secops_radar_fw">FW</button>
+              <button class="period-btn" id="radarTabSvc" onclick="switchRadarTab('service')" data-i18n="secops_radar_svc">SVC</button>
+              <button class="chart-expand-btn" onclick="toggleRadarExpand()" title="Expand" aria-label="Expand radar chart">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+              </button>
+            </div>
+          </div>
+          <div style="position:relative;flex:1;height:240px;padding:4px 0">
+            <canvas id="radarChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Pass Rate by Service -->
+        <div class="chart-card" style="display:flex;flex-direction:column">
+          <div class="chart-header" style="padding:8px 14px">
+            <div class="chart-title" data-i18n="secops_passrate_title">Pass Rate by Service</div>
+          </div>
+          <div style="overflow-y:auto;max-height:400px">
+            <div class="chart-container" style="position:relative" id="passRateWrap">
+              <canvas id="passRateChart"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- Service Distribution donut/bar with tabs -->
+        <div class="chart-card" style="display:flex;flex-direction:column">
+          <div class="chart-header" style="padding:8px 14px;display:flex;justify-content:space-between;align-items:center">
+            <div class="chart-title" data-i18n="secops_svc_distribution">Service Distribution</div>
+            <div style="display:flex;gap:2px">
+              <button id="svcDistTabDonut" onclick="switchSvcDistTab('donut')"
+                style="padding:3px 10px;font-size:10px;border:1px solid var(--border);border-radius:4px 0 0 4px;background:var(--accent);color:#fff;cursor:pointer">
+                Donut</button>
+              <button id="svcDistTabBar" onclick="switchSvcDistTab('bar')"
+                style="padding:3px 10px;font-size:10px;border:1px solid var(--border);border-radius:0 4px 4px 0;background:var(--bg-input);color:var(--text-secondary);cursor:pointer">
+                Bar</button>
+            </div>
+          </div>
+          <div id="svcDistDonutWrap" style="position:relative;flex:1;height:240px;padding:4px 0">
+            <canvas id="serviceDonutChart"></canvas>
+          </div>
+          <div id="svcDistBarWrap" style="position:relative;flex:1;height:240px;padding:4px 0;display:none">
+            <canvas id="serviceDistBarChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Row 2: Framework | WAFR | Remediation — 3 equal columns (hidden until scan) -->
+    <div id="chartsRow" style="display:none;margin-bottom:12px">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+
+        <!-- Framework compliance gauges -->
+        <div class="chart-card" style="display:flex;flex-direction:column">
+          <div class="chart-header" style="padding:8px 14px">
+            <div class="chart-title" data-i18n="secops_fw_compliance">Framework Compliance</div>
+          </div>
+          <div id="fwGaugesContainer" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:6px 10px;flex:1;align-content:center"></div>
+        </div>
+
+        <!-- WAFR Pillar chart -->
+        <div class="chart-card" style="display:flex;flex-direction:column">
+          <div class="chart-header" style="padding:8px 14px">
+            <div class="chart-title">WAFR — Well-Architected</div>
+          </div>
+          <div style="position:relative;flex:1;height:240px">
+            <canvas id="wafrPillarChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Remediation Progress -->
+        <div class="chart-card" style="display:flex;flex-direction:column">
+          <div class="chart-header" style="padding:8px 14px">
+            <div class="chart-title" data-i18n="secops_remediation_title">Remediation Progress</div>
+          </div>
+          <div id="remediationContainer" style="flex:1;height:240px;overflow-y:auto;padding:6px 10px"></div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Row 3: Score Trend | Finding Trend (hidden until scan) -->
+    <div id="chartsRow2" style="display:none;margin-bottom:12px">
+      <!-- Score Trend | Finding Trend — 2 equal columns -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+
+        <!-- Security Score Trend -->
+        <div class="chart-card" style="display:flex;flex-direction:column">
+          <div class="chart-header" style="padding:8px 14px">
+            <div class="chart-title" data-i18n="secops_trend_title">Score Trend</div>
+          </div>
+          <div style="position:relative;flex:1;height:240px" id="trendChartWrap">
+            <canvas id="trendChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Finding Trend (severity breakdown over scans) -->
+        <div class="chart-card" style="display:flex;flex-direction:column">
+          <div class="chart-header" style="padding:8px 14px">
+            <div class="chart-title" data-i18n="secops_finding_trend_title">Finding Trend</div>
+          </div>
+          <div style="position:relative;flex:1;height:240px" id="findingTrendWrap">
+            <canvas id="findingTrendChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Severity (full width) -->
+      <div style="display:grid;grid-template-columns:1fr;gap:12px;margin-bottom:12px">
+        <div class="chart-card" style="display:flex;flex-direction:column">
+          <div class="chart-header" style="padding:8px 14px">
+            <div class="chart-title" data-i18n="secops_findings_by_sev">Findings by Severity</div>
+          </div>
+          <div style="position:relative;flex:1;height:240px">
+            <canvas id="severityChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Row 4: Heat Map | Top Failed Controls — 2 equal columns -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+        <div class="chart-card" style="display:flex;flex-direction:column">
+          <div class="chart-header" style="padding:8px 14px">
+            <div class="chart-title" data-i18n="secops_heatmap_title">Service × Region Risk</div>
+          </div>
+          <div id="heatmapContainer" style="overflow:auto;max-height:400px;padding:4px 0"></div>
+        </div>
+
+        <div class="chart-card" style="display:flex;flex-direction:column">
+          <div class="chart-header" style="padding:8px 14px">
+            <div class="chart-title" data-i18n="secops_top_failed_title">Top Failed Controls</div>
+          </div>
+          <div id="topFailedWrap" style="flex:1;overflow-y:auto;max-height:400px;padding:6px 10px"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Row 5: Risk Treemap (hidden until scan) -->
+    <div id="chartsRow3" style="display:none;margin-bottom:12px">
+      <div style="display:grid;grid-template-columns:1fr;gap:12px">
+        <div class="chart-card" style="display:flex;flex-direction:column">
+          <div class="chart-header" style="padding:8px 14px">
+            <div class="chart-title" data-i18n="secops_treemap_title">Risk Exposure</div>
+          </div>
+          <div style="flex:1;min-height:220px;overflow:hidden" id="riskTreemapWrap"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Findings Table (hidden until scan) -->
+    <div id="findingsSection" style="display:none">
+      <div class="table-card">
+        <div class="table-card-header" style="flex-wrap:wrap;gap:10px">
+          <div class="table-card-title" data-i18n="secops_findings">Security Findings</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+            <input type="text" id="findingsSearch" placeholder="Search…"
+              oninput="onSearchInput(this.value)"
+              class="secops-filter-input">
+
+            <!-- Custom Severity Dropdown -->
+            <div class="cfd" id="cfdSev">
+              <button class="cfd-trigger" onclick="toggleCfd('cfdSev')">
+                <span class="cfd-label" id="cfdSevLabel">All Severities</span>
+                <svg class="cfd-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+              </button>
+              <div class="cfd-panel" id="cfdSevPanel">
+                <div class="cfd-opt selected" data-val="" onclick="selectCfd('cfdSev','','All Severities')">All Severities</div>
+                <div class="cfd-opt" data-val="CRITICAL" onclick="selectCfd('cfdSev','CRITICAL','Critical')"><span class="cfd-dot" style="background:#dc2626"></span>Critical</div>
+                <div class="cfd-opt" data-val="HIGH" onclick="selectCfd('cfdSev','HIGH','High')"><span class="cfd-dot" style="background:#ea580c"></span>High</div>
+                <div class="cfd-opt" data-val="MEDIUM" onclick="selectCfd('cfdSev','MEDIUM','Medium')"><span class="cfd-dot" style="background:#d97706"></span>Medium</div>
+                <div class="cfd-opt" data-val="LOW" onclick="selectCfd('cfdSev','LOW','Low')"><span class="cfd-dot" style="background:#65a30d"></span>Low</div>
+                <div class="cfd-opt" data-val="INFO" onclick="selectCfd('cfdSev','INFO','Info')"><span class="cfd-dot" style="background:#0891b2"></span>Info</div>
+              </div>
+            </div>
+
+            <!-- Custom Service Dropdown (with search) -->
+            <div class="cfd cfd-searchable" id="cfdSvc">
+              <button class="cfd-trigger" onclick="toggleCfd('cfdSvc')">
+                <span class="cfd-label" id="cfdSvcLabel">All Services</span>
+                <svg class="cfd-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+              </button>
+              <div class="cfd-panel" id="cfdSvcPanel">
+                <div class="cfd-search-wrap">
+                  <input type="text" class="cfd-search" id="cfdSvcSearch" placeholder="Search services…" oninput="filterCfdOptions('cfdSvc', this.value)" autocomplete="off" spellcheck="false">
+                </div>
+                <div class="cfd-options" id="cfdSvcOptions">
+                  <div class="cfd-opt selected" data-val="" onclick="selectCfd('cfdSvc','','All Services')">All Services</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Custom Status Dropdown -->
+            <div class="cfd" id="cfdStatus">
+              <button class="cfd-trigger" onclick="toggleCfd('cfdStatus')">
+                <span class="cfd-label" id="cfdStatusLabel">All Statuses</span>
+                <svg class="cfd-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+              </button>
+              <div class="cfd-panel" id="cfdStatusPanel">
+                <div class="cfd-opt selected" data-val="" onclick="selectCfd('cfdStatus','','All Statuses')">All Statuses</div>
+                <div class="cfd-opt" data-val="FAIL" onclick="selectCfd('cfdStatus','FAIL','Fail')"><span class="cfd-dot" style="background:#dc2626"></span>Fail</div>
+                <div class="cfd-opt" data-val="PASS" onclick="selectCfd('cfdStatus','PASS','Pass')"><span class="cfd-dot" style="background:#16a34a"></span>Pass</div>
+                <div class="cfd-opt" data-val="WARNING" onclick="selectCfd('cfdStatus','WARNING','Warning')"><span class="cfd-dot" style="background:#d97706"></span>Warning</div>
+                <div class="cfd-opt" data-val="NOT_AVAILABLE" onclick="selectCfd('cfdStatus','NOT_AVAILABLE','N/A')"><span class="cfd-dot" style="background:#6b7280"></span>N/A</div>
+                <div class="cfd-opt" data-val="MANUAL" onclick="selectCfd('cfdStatus','MANUAL','Manual')"><span class="cfd-dot" style="background:#7c3aed"></span>Manual</div>
+              </div>
+            </div>
+
+            <!-- Custom Framework Dropdown -->
+            <div class="cfd" id="cfdFw">
+              <button class="cfd-trigger" onclick="toggleCfd('cfdFw')">
+                <span class="cfd-label" id="cfdFwLabel">All Frameworks</span>
+                <svg class="cfd-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+              </button>
+              <div class="cfd-panel" id="cfdFwPanel">
+                <div class="cfd-opt selected" data-val="" onclick="selectCfd('cfdFw','','All Frameworks')">All Frameworks</div>
+                <div class="cfd-opt" data-val="CIS" onclick="selectCfd('cfdFw','CIS','CIS')">CIS</div>
+                <div class="cfd-opt" data-val="HIPAA" onclick="selectCfd('cfdFw','HIPAA','HIPAA')">HIPAA</div>
+                <div class="cfd-opt" data-val="ISO27001" onclick="selectCfd('cfdFw','ISO27001','ISO 27001')">ISO 27001</div>
+                <div class="cfd-opt" data-val="WAFR" onclick="selectCfd('cfdFw','WAFR','WAFR')">WAFR</div>
+              </div>
+            </div>
+
+            <button class="btn btn-outline btn-sm" onclick="clearFilters()" data-i18n="profile_clear">Clear</button>
+            <button class="btn btn-primary btn-sm" onclick="saveAndGoToReports(this)" title="Raporu kaydet / Save report" style="display:flex;align-items:center;gap:5px">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+                <polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>
+              </svg>
+              <span data-i18n="nav_reports">Reports</span>
+            </button>
+          </div>
+        </div>
+        <div style="overflow-x:auto">
+          <table class="data-table" id="findingsTable">
+            <thead>
+              <tr id="findingsTableHead">
+                <th onclick="setSortCol('severity')" style="cursor:pointer;white-space:nowrap" data-i18n="secops_col_sev">Severity <span id="sortInd_severity" style="opacity:.5">↕</span></th>
+                <th onclick="setSortCol('status')"   style="cursor:pointer;white-space:nowrap" data-i18n="secops_col_status">Status <span id="sortInd_status" style="opacity:.5">↕</span></th>
+                <th onclick="setSortCol('service')"  style="cursor:pointer;white-space:nowrap" data-i18n="secops_col_service">Service <span id="sortInd_service" style="opacity:.5">↕</span></th>
+                <th data-i18n="secops_col_finding">Finding</th>
+                <th onclick="setSortCol('resource')" style="cursor:pointer;white-space:nowrap" data-i18n="secops_col_resource">Resource <span id="sortInd_resource" style="opacity:.5">↕</span></th>
+                <th onclick="setSortCol('region')"   style="cursor:pointer;white-space:nowrap" data-i18n="secops_col_region">Region <span id="sortInd_region" style="opacity:.5">↕</span></th>
+                <th data-i18n="secops_col_frameworks">Frameworks</th>
+              </tr>
+            </thead>
+            <tbody id="findingsBody"></tbody>
+          </table>
+        </div>
+        <div id="findingsPagination" style="padding:12px 20px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"></div>
+      </div>
+    </div>
+
+  </div><!-- /section-dashboard -->
+
+  <!-- ===== SECTION: Reports ===== -->
+  <div class="page-section" id="section-reports" style="display:none">
+    <div class="table-card">
+      <div class="table-card-header">
+        <div class="table-card-title" data-i18n="secops_report_title">Reports</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <button class="btn btn-sm" id="deleteSelectedBtn" onclick="deleteSelectedReports()"
+                  style="display:none;background:#dc262615;color:#dc2626;border:1px solid #dc262630;gap:5px;font-size:11px;font-weight:600;transition:all .2s">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            <span>Delete selected</span>
+          </button>
+          <button class="btn btn-outline btn-sm" onclick="loadReportList()" title="Refresh">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+          </button>
+        </div>
+      </div>
+      <div style="overflow-x:auto">
+        <table class="data-table" id="reportListTable" style="display:none">
+          <thead>
+            <tr>
+              <th style="width:36px;text-align:center">
+                <input type="checkbox" id="reportSelectAll" onchange="toggleSelectAllReports(this)"
+                       style="accent-color:var(--accent);width:14px;height:14px;cursor:pointer">
+              </th>
+              <th>DATE</th>
+              <th>FORMATS</th>
+              <th style="width:40px"></th>
+            </tr>
+          </thead>
+          <tbody id="reportListBody"></tbody>
+        </table>
+        <div id="reportListEmpty" style="padding:40px;text-align:center;font-size:13px;color:var(--text-muted);display:none">
+          No reports yet — run a scan first.
+        </div>
+      </div>
+    </div>
+  </div><!-- /section-reports -->
+
+</div><!-- /page-body -->
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="/static/secops/js/secops.js"></script>
+{% endblock %}

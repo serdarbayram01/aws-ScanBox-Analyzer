@@ -1,0 +1,274 @@
+{% extends "base.html" %}
+
+{% block title %}Topology Setup Guide — AWS ScanBox{% endblock %}
+{% block page_title %}<span data-i18n="topo_title">Network Topology</span>{% endblock %}
+{% block page_subtitle %}<span data-i18n="nav_guide">Setup Guide</span>{% endblock %}
+
+{% block sidebar_sections %}
+<div class="nav-section-label" data-i18n="nav_section_main">Main</div>
+<a class="nav-item" href="/topology">
+  <span class="nav-icon">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+      <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+    </svg>
+  </span>
+  <span class="nav-label" data-i18n="nav_dashboard">Dashboard</span>
+</a>
+
+<div class="nav-section-label" data-i18n="nav_section_tools">Tools</div>
+<a class="nav-item" href="/topology#reportSection">
+  <span class="nav-icon">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+      <polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+    </svg>
+  </span>
+  <span class="nav-label" data-i18n="nav_reports">Reports</span>
+</a>
+
+<div class="nav-section-label" data-i18n="nav_section_help">Help</div>
+<a class="nav-item active" href="/topology/guide">
+  <span class="nav-icon">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+      <line x1="9" y1="9" x2="15" y2="9"/><line x1="9" y1="13" x2="13" y2="13"/>
+    </svg>
+  </span>
+  <span class="nav-label" data-i18n="nav_guide">Setup Guide</span>
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="page-body">
+<style>
+  .guide-section { margin-bottom: 28px; }
+  .guide-section h2 { font-size:15px; font-weight:600; color:var(--text-primary); margin:0 0 10px; display:flex; align-items:center; gap:8px; }
+  .guide-section h2 .step-badge { background:var(--accent); color:#000; border-radius:50%; width:22px; height:22px; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; flex-shrink:0; }
+  .guide-section p { font-size:13px; color:var(--text-secondary); margin:0 0 10px; line-height:1.6; }
+  .guide-section ul { font-size:13px; color:var(--text-secondary); margin:0 0 10px; padding-left:20px; line-height:1.7; }
+  .perm-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:12px; margin-bottom:16px; }
+  .perm-card { background:var(--bg-card); border:1px solid var(--border); border-radius:8px; padding:14px 16px; }
+  .perm-card-title { font-size:12px; font-weight:600; color:var(--accent); margin-bottom:8px; }
+  .perm-card ul { margin:0; padding-left:16px; font-size:11px; color:var(--text-secondary); line-height:1.8; font-family:'JetBrains Mono',monospace; }
+  .code-block { background:var(--bg-base); border:1px solid var(--border); border-radius:8px; padding:16px; font-family:'JetBrains Mono',monospace; font-size:11px; color:#e2e8f0; overflow-x:auto; white-space:pre; line-height:1.6; position:relative; }
+  .copy-btn { position:absolute; top:10px; right:10px; background:var(--bg-card); border:1px solid var(--border); color:var(--text-secondary); border-radius:6px; padding:4px 10px; font-size:11px; cursor:pointer; }
+  .copy-btn:hover { color:var(--accent); border-color:var(--accent); }
+  .note-box { background:var(--bg-card); border-left:3px solid var(--accent); padding:10px 14px; border-radius:0 6px 6px 0; font-size:12px; color:var(--text-secondary); margin-bottom:12px; }
+  .view-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:16px; }
+  .view-card { background:var(--bg-card); border:1px solid var(--border); border-radius:8px; padding:14px 16px; }
+  .view-card-title { font-size:13px; font-weight:600; color:var(--accent); margin-bottom:6px; }
+  .view-card-desc { font-size:12px; color:var(--text-secondary); margin-bottom:8px; }
+</style>
+
+<div class="chart-card" style="margin-bottom:20px">
+  <div class="chart-header">
+    <div>
+      <div class="chart-title" data-i18n="topo_guide_title">Topology — Setup Guide</div>
+      <div class="chart-subtitle" data-i18n="topo_guide_sub">Required IAM permissions and configuration for network topology scanning</div>
+    </div>
+  </div>
+  <div style="padding:0 4px 8px">
+
+    <!-- Step 1 -->
+    <div class="guide-section">
+      <h2><span class="step-badge">1</span> <span data-i18n="topo_guide_overview">Overview</span></h2>
+      <p data-i18n="topo_guide_overview_desc">
+        Topology scans your AWS account using <strong>read-only boto3 API calls</strong> to discover VPCs, subnets,
+        gateways, peering connections, and all networking resources. It creates interactive architecture diagrams
+        following AWS best practices visualization standards.
+      </p>
+      <div class="note-box" data-i18n="topo_guide_readonly_note">
+        All checks are <strong>read-only</strong>. Topology never creates, modifies, or deletes any AWS resource.
+      </div>
+    </div>
+
+    <!-- Step 2 — View Levels -->
+    <div class="guide-section">
+      <h2><span class="step-badge">2</span> <span data-i18n="topo_guide_views">View Levels</span></h2>
+      <div class="view-grid">
+        <div class="view-card">
+          <div class="view-card-title" data-i18n="topo_view_basic">Basic</div>
+          <div class="view-card-desc" data-i18n="topo_view_basic_desc">Core networking infrastructure</div>
+          <ul><li>VPC</li><li>Subnet (Public/Private)</li><li>Internet Gateway</li><li>NAT Gateway</li><li>Route Table</li><li>VPC Peering</li></ul>
+        </div>
+        <div class="view-card">
+          <div class="view-card-title" data-i18n="topo_view_medium">Medium</div>
+          <div class="view-card-desc" data-i18n="topo_view_medium_desc">+ Security & connectivity</div>
+          <ul><li>Security Groups</li><li>Network ACLs</li><li>VPC Endpoints</li><li>Elastic IPs</li></ul>
+        </div>
+        <div class="view-card">
+          <div class="view-card-title" data-i18n="topo_view_detailed">Detailed</div>
+          <div class="view-card-desc" data-i18n="topo_view_detailed_desc">+ All compute & services</div>
+          <ul><li>EC2 Instances</li><li>RDS Databases</li><li>Load Balancers</li><li>Lambda (VPC)</li><li>EKS Clusters</li><li>Transit Gateway</li><li>Direct Connect</li><li>CloudFront</li><li>S3</li><li>ACM</li></ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 3 — Required Permissions -->
+    <div class="guide-section">
+      <h2><span class="step-badge">3</span> <span data-i18n="topo_guide_perms">Required Permissions by Service</span></h2>
+      <div class="perm-grid">
+        <div class="perm-card">
+          <div class="perm-card-title">VPC & Networking</div>
+          <ul>
+            <li>ec2:DescribeVpcs</li>
+            <li>ec2:DescribeSubnets</li>
+            <li>ec2:DescribeInternetGateways</li>
+            <li>ec2:DescribeNatGateways</li>
+            <li>ec2:DescribeRouteTables</li>
+            <li>ec2:DescribeVpcPeeringConnections</li>
+            <li>ec2:DescribeSecurityGroups</li>
+            <li>ec2:DescribeNetworkAcls</li>
+            <li>ec2:DescribeVpcEndpoints</li>
+            <li>ec2:DescribeAddresses</li>
+            <li>ec2:DescribeRegions</li>
+          </ul>
+        </div>
+        <div class="perm-card">
+          <div class="perm-card-title">Compute</div>
+          <ul>
+            <li>ec2:DescribeInstances</li>
+            <li>lambda:ListFunctions</li>
+            <li>eks:ListClusters</li>
+            <li>eks:DescribeCluster</li>
+          </ul>
+        </div>
+        <div class="perm-card">
+          <div class="perm-card-title">Data & Load Balancing</div>
+          <ul>
+            <li>rds:DescribeDBInstances</li>
+            <li>elasticloadbalancing:DescribeLoadBalancers</li>
+          </ul>
+        </div>
+        <div class="perm-card">
+          <div class="perm-card-title">Transit & Connectivity</div>
+          <ul>
+            <li>ec2:DescribeTransitGateways</li>
+            <li>ec2:DescribeTransitGatewayAttachments</li>
+            <li>directconnect:DescribeConnections</li>
+            <li>directconnect:DescribeVirtualGateways</li>
+          </ul>
+        </div>
+        <div class="perm-card">
+          <div class="perm-card-title">Global Services</div>
+          <ul>
+            <li>cloudfront:ListDistributions</li>
+            <li>s3:ListAllMyBuckets</li>
+            <li>s3:GetBucketLocation</li>
+            <li>acm:ListCertificates</li>
+            <li>organizations:DescribeOrganization</li>
+            <li>organizations:ListAccounts</li>
+          </ul>
+        </div>
+        <div class="perm-card">
+          <div class="perm-card-title">Identity</div>
+          <ul>
+            <li>sts:GetCallerIdentity</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 4 — IAM Policy -->
+    <div class="guide-section">
+      <h2><span class="step-badge">4</span> <span data-i18n="topo_guide_policy">IAM Policy JSON</span></h2>
+      <p data-i18n="topo_guide_policy_desc">Create a custom IAM policy with this document and attach it to the IAM user or role used for scanning.</p>
+      <div style="position:relative">
+        <div class="code-block" id="policyJson">{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "TopologyReadOnly",
+      "Effect": "Allow",
+      "Action": [
+        "sts:GetCallerIdentity",
+        "ec2:DescribeVpcs",
+        "ec2:DescribeSubnets",
+        "ec2:DescribeInternetGateways",
+        "ec2:DescribeNatGateways",
+        "ec2:DescribeRouteTables",
+        "ec2:DescribeVpcPeeringConnections",
+        "ec2:DescribeSecurityGroups",
+        "ec2:DescribeNetworkAcls",
+        "ec2:DescribeVpcEndpoints",
+        "ec2:DescribeAddresses",
+        "ec2:DescribeInstances",
+        "ec2:DescribeRegions",
+        "ec2:DescribeTransitGateways",
+        "ec2:DescribeTransitGatewayAttachments",
+        "rds:DescribeDBInstances",
+        "elasticloadbalancing:DescribeLoadBalancers",
+        "lambda:ListFunctions",
+        "eks:ListClusters",
+        "eks:DescribeCluster",
+        "directconnect:DescribeConnections",
+        "directconnect:DescribeVirtualGateways",
+        "cloudfront:ListDistributions",
+        "s3:ListAllMyBuckets",
+        "s3:GetBucketLocation",
+        "acm:ListCertificates",
+        "organizations:DescribeOrganization",
+        "organizations:ListAccounts"
+      ],
+      "Resource": "*"
+    }
+  ]
+}</div>
+        <button class="copy-btn" onclick="copyPolicy()">Copy</button>
+      </div>
+    </div>
+
+    <!-- Step 5 — Diagram Features -->
+    <div class="guide-section">
+      <h2><span class="step-badge">5</span> <span data-i18n="topo_guide_features">Diagram Features</span></h2>
+      <div class="perm-grid" style="grid-template-columns:repeat(auto-fill,minmax(220px,1fr))">
+        <div class="perm-card">
+          <div class="perm-card-title" data-i18n="topo_guide_interactive">Interactive Canvas</div>
+          <ul style="font-family:inherit">
+            <li data-i18n="topo_guide_drag">Drag & drop nodes</li>
+            <li data-i18n="topo_guide_zoom">Zoom & pan</li>
+            <li data-i18n="topo_guide_label">Edit labels</li>
+            <li data-i18n="topo_guide_filter">Filter by type</li>
+          </ul>
+        </div>
+        <div class="perm-card">
+          <div class="perm-card-title" data-i18n="topo_guide_views_title">View Modes</div>
+          <ul style="font-family:inherit">
+            <li data-i18n="topo_guide_org_view">Organization Overview</li>
+            <li data-i18n="topo_guide_vpc_arch">VPC Architecture</li>
+            <li data-i18n="topo_guide_peering_view">Peering & Transit</li>
+            <li data-i18n="topo_guide_flow">Network Flow</li>
+          </ul>
+        </div>
+        <div class="perm-card">
+          <div class="perm-card-title" data-i18n="topo_guide_export_title">Export Formats</div>
+          <ul style="font-family:inherit">
+            <li>SVG / PNG / JPG / WebP</li>
+            <li>HTML / PDF / CSV</li>
+            <li>Draw.io (XML)</li>
+            <li>Excalidraw (JSON)</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function copyPolicy() {
+  const text = document.getElementById('policyJson').textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.querySelector('.copy-btn');
+    const orig = btn.textContent;
+    btn.textContent = 'Copied!';
+    btn.style.color = '#16a34a';
+    setTimeout(() => { btn.textContent = orig; btn.style.color = ''; }, 2000);
+  });
+}
+</script>
+{% endblock %}

@@ -1,0 +1,249 @@
+{% extends "base.html" %}
+
+{% block title %}Health — AWS ScanBox{% endblock %}
+{% block page_title %}<span data-i18n="health_title">Health Monitor</span>{% endblock %}
+{% block page_subtitle %}<span data-i18n="health_subtitle">Connection Health, AWS Status & DNS Monitoring</span>{% endblock %}
+
+{% block sidebar_sections %}
+<div class="nav-section-label" data-i18n="nav_section_main">Main</div>
+<a class="nav-item active" data-section="dashboard" href="/health">
+  <span class="nav-icon">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+      <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+    </svg>
+  </span>
+  <span class="nav-label" data-i18n="nav_dashboard">Dashboard</span>
+</a>
+{% endblock %}
+
+{% block content %}
+<link rel="stylesheet" href="/static/health/css/health.css">
+
+<div class="page-body" style="padding:20px;overflow-y:auto;height:calc(100vh - 64px)">
+
+  <!-- ═══════════════ STATUS BAR ═══════════════ -->
+  <div class="health-status-bar" id="statusBar">
+    <div class="status-item">
+      <span class="status-dot" id="monitorDot"></span>
+      <span id="monitorLabel" data-i18n="health_initializing">Initializing...</span>
+    </div>
+    <div class="status-item">
+      <span style="color:var(--text-muted);font-size:12px" data-i18n="health_last_update">Last update:</span>
+      <span id="lastUpdate" style="font-family:var(--font-mono);font-size:12px">—</span>
+    </div>
+    <div class="status-item" id="bestRegionBadge" style="display:none">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2" stroke-linecap="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+      <span data-i18n="health_best_region">Best Region:</span>
+      <strong id="bestRegionName">—</strong>
+      <code id="bestRegionLatency">—</code>
+    </div>
+  </div>
+
+  <!-- ═══════════════ SECTION 1: CONNECTION HEALTH CHECK ═══════════════ -->
+  <div class="health-section">
+    <div class="section-header">
+      <div class="section-header-left">
+        <span class="section-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        </span>
+        <h2 data-i18n="health_connection_title">Connection Health Check</h2>
+        <span class="region-count-badge" id="regionCount">0</span>
+      </div>
+      <div class="section-header-right">
+        <div class="view-toggle" id="latencyViewToggle">
+          <button class="view-btn active" data-view="table" title="Table View">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+          </button>
+          <button class="view-btn" data-view="chart" title="Chart View">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Table View -->
+    <div id="latencyTableView" class="view-panel active">
+      <div class="health-table-wrap">
+        <table class="health-table" id="latencyTable">
+          <thead>
+            <tr>
+              <th style="width:32px">#</th>
+              <th data-i18n="health_col_region">Region</th>
+              <th data-i18n="health_col_name">Name</th>
+              <th data-i18n="health_col_latency">Latency</th>
+              <th data-i18n="health_col_status">Status</th>
+              <th style="width:200px" data-i18n="health_col_bar">Bar</th>
+            </tr>
+          </thead>
+          <tbody id="latencyTableBody">
+            <tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text-muted)">
+              <span class="spinner"></span> <span data-i18n="health_waiting_data">Waiting for first measurement...</span>
+            </td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Chart View -->
+    <div id="latencyChartView" class="view-panel">
+      <div style="height:400px;position:relative">
+        <canvas id="latencyBarChart"></canvas>
+      </div>
+    </div>
+
+    <!-- Trend Chart (always visible below) -->
+    <div class="trend-section">
+      <h3 style="font-size:13px;color:var(--text-secondary);margin:16px 0 8px;font-weight:500" data-i18n="health_latency_trend">Latency Trend (Top 5 Regions)</h3>
+      <div style="height:200px;position:relative">
+        <canvas id="latencyTrendChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════ SECTION 2: AWS OUTAGE STATUS ═══════════════ -->
+  <div class="health-section">
+    <div class="section-header">
+      <div class="section-header-left">
+        <span class="section-icon" style="color:var(--yellow)">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        </span>
+        <h2 data-i18n="health_aws_outage_title">AWS Service Status</h2>
+        <span class="outage-count-badge" id="outageCount">0</span>
+      </div>
+      <div class="section-header-right">
+        <div class="view-toggle" id="outageViewToggle">
+          <button class="view-btn active" data-view="map" title="Region Map">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+          </button>
+          <button class="view-btn" data-view="feed" title="Feed View">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Map View (default) -->
+    <div id="outageMapView" class="view-panel active">
+      <div class="region-map-grid" id="regionMapGrid">
+        <!-- Populated by JS -->
+      </div>
+    </div>
+
+    <!-- Feed View -->
+    <div id="outageFeedView" class="view-panel">
+      <div id="outageList" class="outage-feed">
+        <div class="outage-empty" data-i18n="health_outage_loading">Loading AWS status...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════ SECTION 3: DNS & CDN HEALTH ═══════════════ -->
+  <div class="health-section">
+    <div class="section-header">
+      <div class="section-header-left">
+        <span class="section-icon" style="color:var(--blue)">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+        </span>
+        <h2 data-i18n="health_dns_title">DNS & CDN Health</h2>
+      </div>
+    </div>
+
+    <div class="dns-grid">
+      <!-- Cloudflare Card -->
+      <div class="dns-provider-card" id="cloudflareCard">
+        <div class="provider-header">
+          <div class="provider-logo cloudflare-logo">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg>
+          </div>
+          <div>
+            <div class="provider-name">Cloudflare</div>
+            <div class="provider-status" id="cfStatusText">—</div>
+          </div>
+          <span class="provider-dot" id="cfDot"></span>
+        </div>
+
+        <div class="dns-resolvers">
+          <div class="resolver-row" id="cfResolver1">
+            <code>1.1.1.1</code>
+            <span class="resolver-latency">—</span>
+            <span class="resolver-dot"></span>
+          </div>
+          <div class="resolver-row" id="cfResolver2">
+            <code>1.0.0.1</code>
+            <span class="resolver-latency">—</span>
+            <span class="resolver-dot"></span>
+          </div>
+        </div>
+
+        <!-- Cloudflare Components -->
+        <div class="cf-components" id="cfComponents">
+          <!-- Populated by JS -->
+        </div>
+
+        <!-- Cloudflare Incidents -->
+        <div class="cf-incidents" id="cfIncidents">
+          <!-- Populated by JS -->
+        </div>
+
+        <div style="height:120px;position:relative;margin-top:12px">
+          <canvas id="cfTrendChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Google DNS Card -->
+      <div class="dns-provider-card" id="googleCard">
+        <div class="provider-header">
+          <div class="provider-logo google-logo">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          </div>
+          <div>
+            <div class="provider-name">Google DNS</div>
+            <div class="provider-status" id="googleStatusText">—</div>
+          </div>
+          <span class="provider-dot" id="googleDot"></span>
+        </div>
+
+        <div class="dns-resolvers">
+          <div class="resolver-row" id="googleResolver1">
+            <code>8.8.8.8</code>
+            <span class="resolver-latency">—</span>
+            <span class="resolver-dot"></span>
+          </div>
+          <div class="resolver-row" id="googleResolver2">
+            <code>8.8.4.4</code>
+            <span class="resolver-latency">—</span>
+            <span class="resolver-dot"></span>
+          </div>
+        </div>
+
+        <div style="height:120px;position:relative;margin-top:12px">
+          <canvas id="googleTrendChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- DNS Gauge Charts -->
+    <div class="dns-gauge-row">
+      <div class="gauge-card">
+        <div style="height:160px;position:relative">
+          <canvas id="cfGaugeChart"></canvas>
+        </div>
+        <div class="gauge-label">Cloudflare <span data-i18n="health_availability">Availability</span></div>
+      </div>
+      <div class="gauge-card">
+        <div style="height:160px;position:relative">
+          <canvas id="googleGaugeChart"></canvas>
+        </div>
+        <div class="gauge-label">Google DNS <span data-i18n="health_availability">Availability</span></div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /page-body -->
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+<script src="/static/health/js/health.js"></script>
+{% endblock %}

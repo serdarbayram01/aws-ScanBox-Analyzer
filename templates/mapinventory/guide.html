@@ -1,0 +1,609 @@
+{% extends "base.html" %}
+
+{% block title %}Map Inventory Setup Guide — AWS ScanBox{% endblock %}
+{% block page_title %}<span data-i18n="mapinv_title">Map Inventory</span>{% endblock %}
+{% block page_subtitle %}<span>Setup Guide</span>{% endblock %}
+
+{% block sidebar_sections %}
+<div class="nav-section-label" data-i18n="nav_section_main">Main</div>
+<a class="nav-item" href="/mapinventory">
+  <span class="nav-icon">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+      <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+    </svg>
+  </span>
+  <span class="nav-label" data-i18n="nav_dashboard">Dashboard</span>
+</a>
+
+<div class="nav-section-label" data-i18n="nav_section_tools">Tools</div>
+<a class="nav-item" href="/mapinventory#reports">
+  <span class="nav-icon">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+      <polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+    </svg>
+  </span>
+  <span class="nav-label" data-i18n="nav_reports">Reports</span>
+</a>
+
+<div class="nav-section-label" data-i18n="nav_section_help">Help</div>
+<a class="nav-item active" href="/mapinventory/guide">
+  <span class="nav-icon">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+      <line x1="9" y1="9" x2="15" y2="9"/><line x1="9" y1="13" x2="13" y2="13"/>
+    </svg>
+  </span>
+  <span class="nav-label" data-i18n="nav_guide">Setup Guide</span>
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="page-body">
+<style>
+  .guide-section { margin-bottom: 28px; }
+  .guide-section h2 { font-size:15px; font-weight:600; color:var(--text-primary); margin:0 0 10px; display:flex; align-items:center; gap:8px; }
+  .guide-section h2 .step-badge { background:var(--accent); color:#000; border-radius:50%; width:22px; height:22px; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; flex-shrink:0; }
+  .guide-section p { font-size:13px; color:var(--text-secondary); margin:0 0 10px; line-height:1.6; }
+  .guide-section ul { font-size:13px; color:var(--text-secondary); margin:0 0 10px; padding-left:20px; line-height:1.7; }
+  .perm-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:12px; margin-bottom:16px; }
+  .perm-card { background:var(--bg-card); border:1px solid var(--border); border-radius:8px; padding:14px 16px; }
+  .perm-card-title { font-size:12px; font-weight:600; color:var(--accent); margin-bottom:8px; }
+  .perm-card ul { margin:0; padding-left:16px; font-size:11px; color:var(--text-secondary); line-height:1.8; font-family:'JetBrains Mono',monospace; }
+  .code-block { background:var(--bg-base); border:1px solid var(--border); border-radius:8px; padding:16px; font-family:'JetBrains Mono',monospace; font-size:11px; color:#e2e8f0; overflow-x:auto; white-space:pre; line-height:1.6; position:relative; }
+  .copy-btn { position:absolute; top:10px; right:10px; background:var(--bg-card); border:1px solid var(--border); color:var(--text-secondary); border-radius:6px; padding:4px 10px; font-size:11px; cursor:pointer; }
+  .copy-btn:hover { color:var(--accent); border-color:var(--accent); }
+  .note-box { background:var(--bg-card); border-left:3px solid var(--accent); padding:10px 14px; border-radius:0 6px 6px 0; font-size:12px; color:var(--text-secondary); margin-bottom:12px; }
+  .feature-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:12px; margin-bottom:16px; }
+  .feature-card { background:var(--bg-card); border:1px solid var(--border); border-radius:8px; padding:14px 16px; }
+  .feature-card-title { font-size:12px; font-weight:600; color:var(--text-primary); margin-bottom:6px; display:flex; align-items:center; gap:6px; }
+  .feature-card p { font-size:11px; color:var(--text-muted); margin:0; line-height:1.5; }
+</style>
+
+<div class="chart-card" style="margin-bottom:20px">
+  <div class="chart-header">
+    <div>
+      <div class="chart-title">Map Inventory — Setup Guide</div>
+      <div class="chart-subtitle">Features, required IAM permissions, and configuration for resource inventory scanning</div>
+    </div>
+  </div>
+  <div style="padding:0 4px 8px">
+
+    <!-- Step 1 — Overview -->
+    <div class="guide-section">
+      <h2><span class="step-badge">1</span> Overview</h2>
+      <p>
+        Map Inventory scans your AWS account using <strong>read-only boto3 API calls</strong> to discover and catalog
+        all resources across <strong>150+ AWS services</strong>. It produces a comprehensive inventory map showing
+        what resources exist, where they are, and how they are configured.
+      </p>
+      <div class="note-box">
+        All operations are <strong>read-only</strong>. Map Inventory never creates, modifies, or deletes any AWS resource.
+      </div>
+    </div>
+
+    <!-- Step 2 — Features -->
+    <div class="guide-section">
+      <h2><span class="step-badge">2</span> Key Features</h2>
+      <div class="feature-grid">
+        <div class="feature-card">
+          <div class="feature-card-title">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+            150+ AWS Services
+          </div>
+          <p>Scans all major AWS services including EC2, S3, RDS, Lambda, ECS, EKS, DynamoDB, CloudFront, and 140+ more.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-card-title">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            Multi-Profile Support
+          </div>
+          <p>Scan multiple AWS profiles simultaneously. Compare up to 2 profiles side-by-side with matching/unique service breakdown.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-card-title">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+            Interactive Dashboard
+          </div>
+          <p>Radar, bar, donut charts. Filter by service, region, type. Click any service to drill down into resource details.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-card-title">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            Export Reports
+          </div>
+          <p>Generate HTML, CSV, and PDF reports grouped by service. Share inventory snapshots with your team.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-card-title">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="3" y1="12" x2="21" y2="12"/></svg>
+            Default Resource Filtering
+          </div>
+          <p>Automatically identifies AWS default resources (default VPC, default security groups, etc.) and excludes them from results.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-card-title">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            Persistent Cache
+          </div>
+          <p>Scan results are cached per profile. View previous scans instantly without re-scanning. Clear cache when needed.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 3 — Required Permissions -->
+    <div class="guide-section">
+      <h2><span class="step-badge">3</span> Required Permissions by Service</h2>
+      <p>Map Inventory uses read-only Describe/List/Get API calls. Below are the key permissions grouped by service category.</p>
+      <div class="perm-grid">
+        <div class="perm-card">
+          <div class="perm-card-title">Core Identity &amp; Access</div>
+          <ul>
+            <li>sts:GetCallerIdentity</li>
+            <li>iam:List*</li>
+            <li>iam:Get*</li>
+            <li>organizations:Describe*</li>
+            <li>organizations:List*</li>
+          </ul>
+        </div>
+        <div class="perm-card">
+          <div class="perm-card-title">Compute</div>
+          <ul>
+            <li>ec2:Describe*</li>
+            <li>lambda:List*</li>
+            <li>lambda:GetFunction*</li>
+            <li>ecs:List* / ecs:Describe*</li>
+            <li>eks:List* / eks:Describe*</li>
+            <li>autoscaling:Describe*</li>
+            <li>lightsail:Get*</li>
+            <li>batch:Describe*</li>
+            <li>apprunner:List* / apprunner:Describe*</li>
+          </ul>
+        </div>
+        <div class="perm-card">
+          <div class="perm-card-title">Storage</div>
+          <ul>
+            <li>s3:ListAllMyBuckets</li>
+            <li>s3:GetBucket*</li>
+            <li>s3:GetEncryptionConfiguration</li>
+            <li>s3:GetPublicAccessBlock</li>
+            <li>efs:Describe*</li>
+            <li>fsx:Describe*</li>
+            <li>backup:List*</li>
+            <li>storagegateway:List*</li>
+          </ul>
+        </div>
+        <div class="perm-card">
+          <div class="perm-card-title">Database</div>
+          <ul>
+            <li>rds:Describe*</li>
+            <li>dynamodb:List* / dynamodb:Describe*</li>
+            <li>elasticache:Describe*</li>
+            <li>redshift:Describe*</li>
+            <li>neptune:Describe*</li>
+            <li>docdb:Describe*</li>
+            <li>opensearch:Describe* / opensearch:List*</li>
+            <li>dax:Describe*</li>
+            <li>keyspaces:List*</li>
+            <li>memorydb:Describe*</li>
+          </ul>
+        </div>
+        <div class="perm-card">
+          <div class="perm-card-title">Networking &amp; CDN</div>
+          <ul>
+            <li>elasticloadbalancing:Describe*</li>
+            <li>cloudfront:List* / cloudfront:Get*</li>
+            <li>route53:List* / route53:Get*</li>
+            <li>route53domains:List*</li>
+            <li>apigateway:GET</li>
+            <li>directconnect:Describe*</li>
+            <li>globalaccelerator:List*</li>
+            <li>network-firewall:List* / Describe*</li>
+          </ul>
+        </div>
+        <div class="perm-card">
+          <div class="perm-card-title">Security</div>
+          <ul>
+            <li>kms:List* / kms:Describe*</li>
+            <li>secretsmanager:List*</li>
+            <li>acm:List* / acm:Describe*</li>
+            <li>guardduty:List* / guardduty:Get*</li>
+            <li>securityhub:Describe*</li>
+            <li>wafv2:List* / wafv2:Get*</li>
+            <li>shield:Describe*</li>
+            <li>inspector2:List*</li>
+            <li>accessanalyzer:List*</li>
+          </ul>
+        </div>
+        <div class="perm-card">
+          <div class="perm-card-title">Application Integration</div>
+          <ul>
+            <li>sqs:List* / sqs:GetQueueAttributes</li>
+            <li>sns:List*</li>
+            <li>events:List* / events:Describe*</li>
+            <li>stepfunctions:List*</li>
+            <li>mq:List* / mq:Describe*</li>
+            <li>ses:List*</li>
+            <li>appsync:List*</li>
+          </ul>
+        </div>
+        <div class="perm-card">
+          <div class="perm-card-title">Management &amp; Monitoring</div>
+          <ul>
+            <li>cloudtrail:Describe*</li>
+            <li>config:Describe*</li>
+            <li>cloudwatch:Describe* / List*</li>
+            <li>logs:Describe*</li>
+            <li>ssm:Describe* / ssm:List*</li>
+            <li>cloudformation:List* / Describe*</li>
+            <li>xray:Get*</li>
+          </ul>
+        </div>
+        <div class="perm-card">
+          <div class="perm-card-title">Analytics &amp; ML</div>
+          <ul>
+            <li>glue:Get*</li>
+            <li>athena:List*</li>
+            <li>kinesis:List* / kinesis:Describe*</li>
+            <li>firehose:List* / firehose:Describe*</li>
+            <li>sagemaker:List*</li>
+            <li>bedrock:List*</li>
+            <li>comprehend:List*</li>
+            <li>rekognition:List*</li>
+          </ul>
+        </div>
+        <div class="perm-card">
+          <div class="perm-card-title">CI/CD &amp; Developer Tools</div>
+          <ul>
+            <li>codebuild:List* / codebuild:BatchGet*</li>
+            <li>codepipeline:List* / codepipeline:Get*</li>
+            <li>codedeploy:List*</li>
+            <li>codeartifact:List*</li>
+            <li>ecr:Describe* / ecr:List*</li>
+            <li>imagebuilder:List*</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 4 — IAM Policy JSON -->
+    <div class="guide-section">
+      <h2><span class="step-badge">4</span> Recommended IAM Policy</h2>
+      <p>For a comprehensive inventory scan, the simplest approach is to use the AWS managed <strong>ReadOnlyAccess</strong> policy.
+         Alternatively, create a custom policy with the specific permissions listed above.</p>
+      <div style="position:relative">
+        <div class="code-block" id="policyJson" style="max-height:240px;overflow-y:auto;resize:vertical">{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "MapInventoryReadOnly",
+      "Effect": "Allow",
+      "Action": [
+        "sts:GetCallerIdentity",
+        "ec2:Describe*",
+        "s3:List*",
+        "s3:GetBucket*",
+        "s3:GetEncryptionConfiguration",
+        "s3:GetPublicAccessBlock",
+        "iam:List*",
+        "iam:Get*",
+        "rds:Describe*",
+        "lambda:List*",
+        "lambda:GetFunction*",
+        "lambda:GetPolicy",
+        "ecs:List*",
+        "ecs:Describe*",
+        "eks:List*",
+        "eks:Describe*",
+        "dynamodb:List*",
+        "dynamodb:Describe*",
+        "sqs:List*",
+        "sqs:GetQueueAttributes",
+        "sns:List*",
+        "elasticloadbalancing:Describe*",
+        "cloudfront:List*",
+        "cloudfront:Get*",
+        "route53:List*",
+        "route53:Get*",
+        "route53domains:List*",
+        "kms:List*",
+        "kms:Describe*",
+        "efs:Describe*",
+        "ecr:Describe*",
+        "ecr:List*",
+        "cloudwatch:Describe*",
+        "cloudwatch:List*",
+        "cloudwatch:GetMetricStatistics",
+        "wafv2:List*",
+        "wafv2:Get*",
+        "acm:List*",
+        "acm:Describe*",
+        "cloudtrail:Describe*",
+        "guardduty:List*",
+        "guardduty:Get*",
+        "config:Describe*",
+        "secretsmanager:List*",
+        "autoscaling:Describe*",
+        "elasticache:Describe*",
+        "redshift:Describe*",
+        "emr:List*",
+        "emr:Describe*",
+        "glue:Get*",
+        "athena:List*",
+        "kinesis:List*",
+        "kinesis:Describe*",
+        "firehose:List*",
+        "firehose:Describe*",
+        "states:List*",
+        "codebuild:List*",
+        "codebuild:BatchGet*",
+        "codepipeline:List*",
+        "codepipeline:Get*",
+        "ssm:Describe*",
+        "ssm:List*",
+        "backup:List*",
+        "organizations:Describe*",
+        "organizations:List*",
+        "lightsail:Get*",
+        "apigateway:GET",
+        "cognito-idp:List*",
+        "ses:List*",
+        "events:List*",
+        "events:Describe*",
+        "mq:List*",
+        "mq:Describe*",
+        "neptune:Describe*",
+        "docdb:Describe*",
+        "es:Describe*",
+        "es:List*",
+        "transfer:List*",
+        "apprunner:List*",
+        "apprunner:Describe*",
+        "batch:Describe*",
+        "cloudformation:List*",
+        "cloudformation:Describe*",
+        "logs:Describe*",
+        "sagemaker:List*",
+        "bedrock:List*",
+        "fsx:Describe*",
+        "storagegateway:List*",
+        "dlm:Get*",
+        "dms:Describe*",
+        "ds:Describe*",
+        "directconnect:Describe*",
+        "network-firewall:List*",
+        "network-firewall:Describe*",
+        "globalaccelerator:List*",
+        "shield:Describe*",
+        "securityhub:Describe*",
+        "macie2:List*",
+        "inspector2:List*",
+        "detective:List*",
+        "fms:List*",
+        "access-analyzer:List*",
+        "elasticbeanstalk:Describe*",
+        "imagebuilder:List*",
+        "appsync:List*",
+        "kafka:List*",
+        "kafka:Describe*",
+        "memorydb:Describe*",
+        "dax:Describe*",
+        "cassandra:Select",
+        "lakeformation:List*",
+        "datazone:List*",
+        "cleanrooms:List*",
+        "quicksight:List*",
+        "grafana:List*",
+        "codedeploy:List*",
+        "codeartifact:List*",
+        "schemas:List*",
+        "iot:List*",
+        "iotsitewise:List*",
+        "connect:List*",
+        "comprehend:List*",
+        "textract:List*",
+        "transcribe:List*",
+        "translate:List*",
+        "polly:Describe*",
+        "rekognition:List*",
+        "lex:List*",
+        "kendra:List*",
+        "sso:List*",
+        "servicediscovery:List*",
+        "servicecatalog:List*",
+        "serverlessrepo:List*",
+        "servicequotas:List*",
+        "resource-groups:List*",
+        "resource-explorer-2:List*",
+        "ram:List*",
+        "compute-optimizer:Get*",
+        "auditmanager:List*",
+        "resiliencehub:List*",
+        "synthetics:Describe*",
+        "fis:List*",
+        "xray:Get*",
+        "datasync:List*",
+        "airflow:List*",
+        "workspaces:Describe*",
+        "ivs:List*",
+        "gamelift:List*",
+        "outposts:List*",
+        "geo:List*",
+        "devicefarm:List*",
+        "health:Describe*",
+        "budgets:Describe*",
+        "ce:Get*",
+        "cloudhsm:Describe*",
+        "tag:GetResources"
+      ],
+      "Resource": "*"
+    }
+  ]
+}</div>
+        <button class="copy-btn" onclick="copyPolicy()">Copy</button>
+      </div>
+      <div class="note-box" style="margin-top:12px">
+        <strong>Tip:</strong> For the easiest setup, attach the AWS managed policy <code style="font-family:monospace;font-size:12px;color:var(--accent)">arn:aws:iam::aws:policy/ReadOnlyAccess</code> to your IAM user/role. This covers all the permissions above.
+      </div>
+    </div>
+
+    <!-- Step 5 — Configure AWS Profile -->
+    <div class="guide-section">
+      <h2><span class="step-badge">5</span> Configure AWS Profile</h2>
+      <p>Add a named profile in <code style="font-family:monospace;font-size:12px;color:var(--accent)">~/.aws/credentials</code> or use <code style="font-family:monospace;font-size:12px;color:var(--accent)">aws configure --profile</code>:</p>
+      <div style="position:relative">
+        <div class="code-block"># Option A — ~/.aws/credentials
+[my-inventory-profile]
+aws_access_key_id     = AKIAIOSFODNN7EXAMPLE
+aws_secret_access_key = wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+region                = us-east-1
+
+# Option B — AWS CLI
+aws configure --profile my-inventory-profile</div>
+      </div>
+    </div>
+
+    <!-- Step 6 — SSO -->
+    <div class="guide-section">
+      <h2><span class="step-badge">6</span> SSO &amp; Cross-Account Roles</h2>
+      <p>For SSO profiles, ensure the permission set includes read-only access. For cross-account scanning via <code style="font-family:monospace;font-size:12px;color:var(--accent)">sts:AssumeRole</code>, add <code style="font-family:monospace;font-size:12px;color:var(--accent)">sts:AssumeRole</code> to the source profile and attach the MapInventoryReadOnly policy to the target role.</p>
+      <div style="position:relative">
+        <div class="code-block"># ~/.aws/config — SSO profile
+[profile my-sso-account]
+sso_start_url         = https://my-org.awsapps.com/start
+sso_region            = us-east-1
+sso_account_id        = 123456789012
+sso_role_name         = ReadOnlyAccess
+region                = us-east-1
+
+# Assume-role profile
+[profile target-account-inventory]
+role_arn              = arn:aws:iam::123456789012:role/MapInventoryReadOnly
+source_profile        = my-admin-profile
+region                = us-east-1</div>
+      </div>
+      <div class="note-box" style="margin-top:12px">
+        If your SSO token expires, the app will detect this and show the exact <code style="font-family:monospace;font-size:12px;color:var(--accent)">aws sso login --profile &lt;name&gt;</code> command to run.
+      </div>
+    </div>
+
+    <!-- Step 7 — How It Works -->
+    <div class="guide-section">
+      <h2><span class="step-badge">7</span> How It Works</h2>
+      <ul>
+        <li><strong>Profile Selection:</strong> Choose one or more AWS profiles. Star profiles as favorites for quick access.</li>
+        <li><strong>Background Scan:</strong> The scan runs in a background thread using 40 parallel workers. Progress is shown in real-time.</li>
+        <li><strong>Global vs Regional:</strong> Services like IAM, S3, Route53 are scanned once (global). All others are scanned per enabled region.</li>
+        <li><strong>Default Resources:</strong> AWS creates default resources (VPC, subnets, security groups) in every region. These are flagged and excluded by default — toggle the checkbox to include them.</li>
+        <li><strong>Caching:</strong> Results are cached per profile. The cache persists until you explicitly clear it. No auto-expiry.</li>
+        <li><strong>Comparison:</strong> Select exactly 2 profiles and scan. The comparison view shows matching services on top and unique services below.</li>
+        <li><strong>Error Handling:</strong> If a service can't be accessed (missing permissions, service not available in region), it's skipped and marked as failed in the scan statistics.</li>
+      </ul>
+    </div>
+
+    <!-- Step 8 — Scanned Services -->
+    <div class="guide-section">
+      <h2><span class="step-badge">8</span> Scanned Service Categories</h2>
+      <div class="perm-grid" style="grid-template-columns:repeat(auto-fill,minmax(220px,1fr))">
+        <div class="perm-card">
+          <div class="perm-card-title">Compute (12)</div>
+          <ul style="font-family:inherit">
+            <li>EC2, Lambda, ECS, EKS</li>
+            <li>Auto Scaling, Lightsail</li>
+            <li>Batch, App Runner</li>
+            <li>Elastic Beanstalk</li>
+            <li>EMR, MWAA, Workspaces</li>
+          </ul>
+        </div>
+        <div class="perm-card">
+          <div class="perm-card-title">Storage (7)</div>
+          <ul style="font-family:inherit">
+            <li>S3, EFS, FSx</li>
+            <li>Storage Gateway</li>
+            <li>Backup, DLM, DataSync</li>
+          </ul>
+        </div>
+        <div class="perm-card">
+          <div class="perm-card-title">Database (12)</div>
+          <ul style="font-family:inherit">
+            <li>RDS, DynamoDB, ElastiCache</li>
+            <li>Redshift, Neptune, DocumentDB</li>
+            <li>OpenSearch, DAX, Keyspaces</li>
+            <li>MemoryDB, Timestream, DSQL</li>
+          </ul>
+        </div>
+        <div class="perm-card">
+          <div class="perm-card-title">Networking (12)</div>
+          <ul style="font-family:inherit">
+            <li>VPC, ELB/ALB/NLB</li>
+            <li>CloudFront, Route 53</li>
+            <li>API Gateway (v1 + v2)</li>
+            <li>Direct Connect, Global Accelerator</li>
+            <li>Network Firewall, VPC Lattice</li>
+            <li>Transfer Family</li>
+          </ul>
+        </div>
+        <div class="perm-card">
+          <div class="perm-card-title">Security (14)</div>
+          <ul style="font-family:inherit">
+            <li>IAM, KMS, ACM, ACM-PCA</li>
+            <li>Secrets Manager, CloudHSM</li>
+            <li>GuardDuty, Security Hub</li>
+            <li>WAFv2, Shield, Macie</li>
+            <li>Inspector, Detective, FMS</li>
+          </ul>
+        </div>
+        <div class="perm-card">
+          <div class="perm-card-title">Application Integration (10)</div>
+          <ul style="font-family:inherit">
+            <li>SQS, SNS, EventBridge</li>
+            <li>Step Functions, MQ</li>
+            <li>SES, AppSync, Amplify</li>
+            <li>AppFlow, Connect</li>
+          </ul>
+        </div>
+        <div class="perm-card">
+          <div class="perm-card-title">Analytics &amp; ML (16)</div>
+          <ul style="font-family:inherit">
+            <li>Glue, Athena, Kinesis, Firehose</li>
+            <li>SageMaker, Bedrock</li>
+            <li>Comprehend, Textract</li>
+            <li>Transcribe, Translate, Polly</li>
+            <li>Rekognition, Lex, Kendra</li>
+            <li>QuickSight, Grafana</li>
+          </ul>
+        </div>
+        <div class="perm-card">
+          <div class="perm-card-title">DevOps &amp; Management (18)</div>
+          <ul style="font-family:inherit">
+            <li>CloudTrail, Config, CloudWatch</li>
+            <li>CloudFormation, SSM, Logs</li>
+            <li>CodeBuild, CodePipeline, CodeDeploy</li>
+            <li>ECR, Image Builder, Synthetics</li>
+            <li>X-Ray, FIS, Audit Manager</li>
+            <li>Organizations, Resource Groups</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /padding -->
+</div><!-- /chart-card -->
+</div><!-- /page-body -->
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function copyPolicy() {
+  const text = document.getElementById('policyJson').textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.querySelector('.copy-btn');
+    const orig = btn.textContent;
+    btn.textContent = 'Copied!';
+    btn.style.color = '#16a34a';
+    setTimeout(() => { btn.textContent = orig; btn.style.color = ''; }, 2000);
+  });
+}
+</script>
+{% endblock %}

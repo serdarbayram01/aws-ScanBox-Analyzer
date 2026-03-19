@@ -1,0 +1,513 @@
+/* ============================================================
+   Enjoy Module — Game Arcade Styles
+   ============================================================ */
+
+/* ── Grid Layout ── */
+.enjoy-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+@media (max-width: 900px) {
+  .enjoy-grid {
+    grid-template-columns: 1fr;
+    max-width: 600px;
+  }
+}
+
+/* ── Game Card ── */
+.enjoy-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 420px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.enjoy-card.focused {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+/* ── Fullscreen ── */
+.enjoy-card.fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  border-radius: 0;
+  border: none;
+  min-height: 100vh;
+  max-height: 100vh;
+  background: var(--bg-base);
+}
+.enjoy-card.fullscreen .enjoy-card-body {
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: auto;
+  padding: 16px;
+}
+
+/* Canvas games (Snake, PacMan) — CSS scale to fill available space */
+.enjoy-card.fullscreen .game-canvas {
+  max-width: calc(100vw - 40px);
+  max-height: calc(100vh - 140px);
+  width: min(calc(100vh - 140px), calc(100vw - 40px));
+  height: min(calc(100vh - 140px), calc(100vw - 40px));
+  image-rendering: pixelated;
+}
+
+/* Board games (Checkers, Chess) — scale up the grid */
+.enjoy-card.fullscreen .board-grid {
+  transform-origin: center center;
+}
+.enjoy-card.fullscreen .board-cell {
+  width: clamp(48px, 8vmin, 80px);
+  height: clamp(48px, 8vmin, 80px);
+}
+.enjoy-card.fullscreen .board-cell .piece {
+  font-size: clamp(24px, 5vmin, 48px);
+}
+
+/* 2048 — larger cells */
+.enjoy-card.fullscreen .g2048-grid {
+  gap: 10px;
+  padding: 10px;
+}
+.enjoy-card.fullscreen .g2048-cell {
+  width: clamp(64px, 12vmin, 110px);
+  height: clamp(64px, 12vmin, 110px);
+  font-size: clamp(18px, 3.5vmin, 32px);
+  border-radius: 8px;
+}
+
+/* Match game — larger cards */
+.enjoy-card.fullscreen .match-grid {
+  gap: 10px;
+}
+.enjoy-card.fullscreen .match-card {
+  width: clamp(56px, 10vmin, 90px);
+  height: clamp(56px, 10vmin, 90px);
+}
+.enjoy-card.fullscreen .match-card .match-front,
+.enjoy-card.fullscreen .match-card .match-back {
+  font-size: clamp(20px, 4vmin, 36px);
+}
+
+/* Footer in fullscreen — fixed at bottom */
+.enjoy-card.fullscreen .enjoy-card-footer {
+  border-top: 1px solid var(--border);
+  background: var(--bg-card);
+}
+.enjoy-fullscreen-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-card);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  padding: 0;
+  flex-shrink: 0;
+}
+.enjoy-fullscreen-btn:hover {
+  background: var(--bg-table-head);
+  color: var(--accent);
+}
+
+.enjoy-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.enjoy-card-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.enjoy-card-icon {
+  display: flex;
+  align-items: center;
+}
+
+.enjoy-card-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.enjoy-card-body {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  position: relative;
+  min-height: 350px;
+  overflow: hidden;
+}
+
+.enjoy-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text-muted);
+  min-height: 36px;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ── Shared Game UI ── */
+.enjoy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  font-family: inherit;
+}
+.enjoy-btn:hover {
+  background: var(--bg-table-head);
+  border-color: var(--accent);
+}
+.enjoy-btn.active {
+  background: var(--accent);
+  color: #000;
+  border-color: var(--accent);
+}
+.enjoy-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.enjoy-select {
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+}
+.enjoy-select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.enjoy-stat {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+}
+.enjoy-stat-label {
+  color: var(--text-muted);
+}
+.enjoy-stat-value {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+}
+
+/* ── Game Overlay ── */
+.enjoy-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.75);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  border-radius: 0;
+  gap: 8px;
+  padding: 20px;
+}
+.enjoy-overlay-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: #fff;
+}
+.enjoy-overlay-sub {
+  font-size: 13px;
+  color: rgba(255,255,255,0.7);
+}
+.enjoy-overlay-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 20px;
+  border: none;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #000;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 8px;
+  transition: transform 0.15s;
+  font-family: inherit;
+}
+.enjoy-overlay-btn:hover {
+  transform: scale(1.05);
+}
+
+/* ── Checkers & Chess Board ── */
+.board-grid {
+  display: inline-grid;
+  border: 2px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.board-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  position: relative;
+  transition: background 0.1s;
+}
+.board-cell.light { background: #e8cfa0; }
+.board-cell.dark  { background: #b58863; }
+[data-theme="light"] .board-cell.light { background: #f0d9b5; }
+[data-theme="light"] .board-cell.dark  { background: #b58863; }
+
+.board-cell.selected { background: rgba(255,193,7,0.5) !important; }
+.board-cell.valid-move::after {
+  content: '';
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: rgba(76,175,80,0.6);
+  position: absolute;
+}
+.board-cell.capture-move::after {
+  width: 80%; height: 80%;
+  border-radius: 50%;
+  border: 3px solid rgba(244,67,54,0.6);
+  background: transparent;
+}
+.board-cell.last-move { background: rgba(255,235,59,0.25) !important; }
+.board-cell.in-check  { background: rgba(244,67,54,0.4) !important; }
+
+/* Checkers pieces */
+.checker-piece {
+  width: 70%;
+  height: 70%;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+  transition: transform 0.15s;
+  user-select: none;
+}
+.checker-piece.player { background: var(--blue); color: #fff; }
+.checker-piece.ai     { background: var(--accent); color: #000; }
+.checker-piece.king::after {
+  content: '\u265A';
+  font-size: 16px;
+}
+.checker-piece.selected-piece {
+  transform: scale(1.1);
+  box-shadow: 0 0 0 3px var(--yellow), 0 2px 8px rgba(0,0,0,0.4);
+}
+
+/* Chess pieces */
+.chess-piece {
+  font-size: 28px;
+  user-select: none;
+  cursor: pointer;
+  line-height: 1;
+}
+.chess-piece.white-piece {
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.9), 0 0 1px rgba(0,0,0,0.9), 1px 0 1px rgba(0,0,0,0.6);
+}
+.chess-piece.black-piece {
+  color: #1a1a2e;
+  text-shadow: 0 0 2px rgba(255,255,255,0.3);
+}
+[data-theme="light"] .chess-piece.white-piece {
+  color: #f8f8f8;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.7), 0 0 1px rgba(0,0,0,0.5);
+}
+[data-theme="light"] .chess-piece.black-piece {
+  color: #1a1a2e;
+  text-shadow: none;
+}
+
+/* ── Snake / PacMan Canvas ── */
+.game-canvas {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  display: block;
+  max-width: 100%;
+  image-rendering: pixelated;
+}
+
+/* ── Match Game ── */
+.match-grid {
+  display: grid;
+  gap: 6px;
+  justify-content: center;
+}
+.match-card {
+  width: 56px;
+  height: 56px;
+  perspective: 600px;
+  cursor: pointer;
+}
+.match-card-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transition: transform 0.4s;
+  transform-style: preserve-3d;
+}
+.match-card.flipped .match-card-inner {
+  transform: rotateY(180deg);
+}
+.match-card-face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--border);
+}
+.match-card-back {
+  background: linear-gradient(135deg, var(--accent), #c77800);
+}
+.match-card-back svg {
+  color: rgba(0,0,0,0.3);
+}
+.match-card-front {
+  transform: rotateY(180deg);
+  background: var(--bg-card);
+}
+.match-card.matched .match-card-front {
+  border-color: var(--green);
+  background: rgba(16,185,129,0.1);
+}
+
+/* ── 2048 Grid ── */
+.g2048-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  padding: 6px;
+  background: var(--border);
+  border-radius: 8px;
+}
+.g2048-cell {
+  width: 64px;
+  height: 64px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 18px;
+  transition: transform 0.1s;
+  user-select: none;
+}
+.g2048-cell.empty {
+  background: rgba(128,128,128,0.15);
+}
+
+@media (max-width: 600px) {
+  .g2048-cell { width: 52px; height: 52px; font-size: 15px; }
+  .match-card { width: 46px; height: 46px; }
+  .chess-piece { font-size: 22px; }
+}
+
+/* ── Confetti Canvas ── */
+.confetti-canvas {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 20;
+}
+
+/* ── Promotion Modal ── */
+.promotion-modal {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 15;
+}
+.promotion-options {
+  display: flex;
+  gap: 8px;
+  background: var(--bg-card);
+  padding: 16px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+}
+.promotion-btn {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-table-head);
+  cursor: pointer;
+  font-size: 28px;
+  transition: background 0.15s;
+}
+.promotion-btn:hover {
+  background: var(--accent);
+}
+
+/* ── Status text ── */
+.enjoy-status {
+  text-align: center;
+  font-size: 12px;
+  padding: 4px 0;
+  font-weight: 500;
+}
+.enjoy-status.thinking { color: var(--accent); }
+.enjoy-status.win      { color: var(--green); }
+.enjoy-status.lose     { color: var(--red, #ef4444); }
+.enjoy-status.check    { color: var(--yellow); }

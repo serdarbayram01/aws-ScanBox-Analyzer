@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+
+{% block title %}Profile Detail — AWS ScanBox{% endblock %}
+{% block page_title %}<span data-i18n="page_detail">Profile Detail</span>{% endblock %}
+{% block page_subtitle %}<span id="profileName" style="color:var(--accent);font-weight:600"></span>{% endblock %}
+
+{% block content %}
+<div class="page-body" id="pageBody">
+
+  <!-- Loading overlay -->
+  <div id="loadingOverlay" class="loading-overlay" style="display:none;position:fixed;inset:0;z-index:999;background:var(--overlay-bg)">
+    <span class="spinner" style="width:32px;height:32px;border-width:3px"></span>
+    <span style="font-size:15px;color:var(--text-secondary)" data-i18n="state_loading">Loading...</span>
+  </div>
+
+  <!-- Back button -->
+  <div class="dr-topbar">
+    <a href="/finops" class="btn btn-outline btn-sm" data-i18n="detail_back">Back to Dashboard</a>
+  </div>
+
+  <!-- ===== Metric Cards ===== -->
+  <div class="metric-grid" id="metricCards"></div>
+
+  <!-- ===== Credits ===== -->
+  <div class="table-card" style="margin-bottom:20px">
+    <div class="table-card-header">
+      <div>
+        <div class="table-card-title" style="display:flex;align-items:center;gap:8px">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+          Credits
+        </div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:2px">Active credits, credit history, and exhausted credits</div>
+      </div>
+    </div>
+    <div style="padding:16px 20px" id="creditsContainer">
+      <div class="loading-overlay"><span class="spinner"></span></div>
+    </div>
+  </div>
+
+  <!-- ===== Anomalies ===== -->
+  <div class="chart-card" style="margin-bottom:20px">
+    <div class="chart-header">
+      <div class="chart-title" data-i18n="anomaly_title">Cost Anomalies</div>
+    </div>
+    <div id="anomalyContainer">
+      <div class="loading-overlay"><span class="spinner"></span></div>
+    </div>
+  </div>
+
+  <!-- ===== Service Costs: Collapsible ===== -->
+  <div class="chart-card collapsible-section open" id="serviceCostsSection" style="margin-bottom:20px">
+    <div class="chart-header collapsible-toggle" onclick="toggleSection('serviceCostsSection')">
+      <div>
+        <div class="chart-title" data-i18n="detail_services">Service Costs</div>
+        <div class="chart-subtitle" data-i18n="detail_click_svc">Click a service row to see daily breakdown</div>
+      </div>
+      <svg class="collapsible-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+    </div>
+    <div class="collapsible-body">
+      <div class="chart-row">
+        <!-- Bar chart (horizontal — top 20 services) -->
+        <div>
+          <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px" data-i18n="detail_top_services">Top Cost Services</div>
+          <div style="position:relative;height:480px;min-height:300px">
+            <canvas id="serviceBarChart"></canvas>
+          </div>
+        </div>
+        <!-- Doughnut chart -->
+        <div>
+          <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px">Service Share (Top 8)</div>
+          <div class="chart-container">
+            <canvas id="serviceDonutChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Service table -->
+      <div style="margin-top:16px;overflow-x:auto" id="serviceTableContainer">
+        <div class="loading-overlay"><span class="spinner"></span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Daily Drilldown (shown on service click) ===== -->
+  <div class="chart-card" id="dailySection" style="margin-bottom:20px;display:none">
+    <div class="chart-header">
+      <div class="chart-title" id="dailyTitle" data-i18n="chart_daily">Daily Cost (This Month)</div>
+      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('dailySection').style.display='none'" style="display:inline-flex;align-items:center;justify-content:center">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="chart-container-sm" id="dailyContainer"></div>
+  </div>
+
+  <!-- ===== Region Distribution ===== -->
+  <div class="chart-card" style="margin-bottom:20px">
+    <div class="chart-header">
+      <div>
+        <div class="chart-title" data-i18n="detail_region">Region Distribution</div>
+        <div class="chart-subtitle">Actual regional costs vs global/marketplace services</div>
+      </div>
+    </div>
+    <div style="position:relative;height:160px">
+      <canvas id="regionChart"></canvas>
+    </div>
+    <div id="globalServicesDetail"></div>
+  </div>
+
+  <!-- ===== Budgets ===== -->
+  <div class="table-card" style="margin-bottom:20px">
+    <div class="table-card-header">
+      <div class="table-card-title" data-i18n="detail_budget">Budget Status</div>
+    </div>
+    <div id="budgetContainer">
+      <div class="loading-overlay"><span class="spinner"></span></div>
+    </div>
+  </div>
+
+  <!-- ===== EC2 Inventory: Collapsible ===== -->
+  <div class="table-card collapsible-section open" id="ec2Section" style="margin-bottom:20px">
+    <div class="table-card-header collapsible-toggle" onclick="toggleSection('ec2Section')">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div class="table-card-title" data-i18n="detail_ec2">EC2 Inventory</div>
+        <button onclick="_ec2ExportCsv();event.stopPropagation()" class="btn btn-outline btn-sm"
+          style="display:inline-flex;align-items:center;gap:4px;font-size:10px;padding:2px 8px"
+          title="Export CSV">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          CSV
+        </button>
+      </div>
+      <svg class="collapsible-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+    </div>
+    <div class="collapsible-body">
+      <!-- Audit summary row (moved from separate section) -->
+      <div class="audit-grid" id="auditSummary" style="padding:0 20px 8px"></div>
+      <!-- EC2 table -->
+      <div style="overflow-x:auto" id="ec2Container">
+        <div class="loading-overlay"><span class="spinner"></span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Cost Report ===== -->
+  <div class="table-card" style="margin-bottom:20px">
+    <div class="table-card-header">
+      <div>
+        <div class="table-card-title" style="display:flex;align-items:center;gap:8px">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
+          </svg>
+          <span data-i18n="cost_report_title">Cost Explorer</span>
+        </div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:2px" data-i18n="cost_report_sub">Daily &amp; monthly cost breakdown by service</div>
+      </div>
+    </div>
+    <div id="costReportContainer">
+      <div class="loading-overlay"><span class="spinner"></span></div>
+    </div>
+  </div>
+
+</div>
+<!-- /page-body -->
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="/static/js/detail.js"></script>
+{% endblock %}

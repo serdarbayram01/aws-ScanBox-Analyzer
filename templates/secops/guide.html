@@ -1,0 +1,514 @@
+{% extends "base.html" %}
+
+{% block title %}SecOps Setup Guide — AWS ScanBox{% endblock %}
+{% block page_title %}<span data-i18n="secops_title">Security Operations</span>{% endblock %}
+{% block page_subtitle %}<span>Setup Guide</span>{% endblock %}
+
+{% block sidebar_sections %}
+<div class="nav-section-label" data-i18n="nav_section_main">Main</div>
+<a class="nav-item" href="/secops">
+  <span class="nav-icon">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+      <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+    </svg>
+  </span>
+  <span class="nav-label" data-i18n="nav_dashboard">Dashboard</span>
+</a>
+
+<div class="nav-section-label" data-i18n="nav_section_tools">Tools</div>
+<a class="nav-item" href="/secops#reportSection">
+  <span class="nav-icon">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+      <polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+    </svg>
+  </span>
+  <span class="nav-label" data-i18n="nav_reports">Reports</span>
+</a>
+
+<div class="nav-section-label" data-i18n="nav_section_help">Help</div>
+<a class="nav-item active" href="/secops/guide">
+  <span class="nav-icon">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+      <line x1="9" y1="9" x2="15" y2="9"/><line x1="9" y1="13" x2="13" y2="13"/>
+    </svg>
+  </span>
+  <span class="nav-label" data-i18n="nav_guide">Setup Guide</span>
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="page-body">
+<style>
+  .guide-section { margin-bottom: 28px; }
+  .guide-section h2 { font-size:15px; font-weight:600; color:var(--text-primary); margin:0 0 10px; display:flex; align-items:center; gap:8px; }
+  .guide-section h2 .step-badge { background:var(--accent); color:#000; border-radius:50%; width:22px; height:22px; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; flex-shrink:0; }
+  .guide-section p { font-size:13px; color:var(--text-secondary); margin:0 0 10px; line-height:1.6; }
+  .perm-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:12px; margin-bottom:16px; }
+  .perm-card { background:var(--bg-card); border:1px solid var(--border); border-radius:8px; padding:14px 16px; }
+  .perm-card-title { font-size:12px; font-weight:600; color:var(--accent); margin-bottom:8px; }
+  .perm-card ul { margin:0; padding-left:16px; font-size:11px; color:var(--text-secondary); line-height:1.8; font-family:'JetBrains Mono',monospace; }
+  .code-block { background:var(--bg-base); border:1px solid var(--border); border-radius:8px; padding:16px; font-family:'JetBrains Mono',monospace; font-size:11px; color:#e2e8f0; overflow-x:auto; white-space:pre; line-height:1.6; position:relative; margin-bottom:14px; }
+  .copy-btn { position:absolute; top:10px; right:10px; background:var(--bg-card); border:1px solid var(--border); color:var(--text-secondary); border-radius:6px; padding:4px 10px; font-size:11px; cursor:pointer; }
+  .copy-btn:hover { color:var(--accent); border-color:var(--accent); }
+  .note-box { background:var(--bg-card); border-left:3px solid var(--accent); padding:10px 14px; border-radius:0 6px 6px 0; font-size:12px; color:var(--text-secondary); margin-bottom:12px; }
+  .note-box-warn { border-left-color:#f59e0b; }
+  .note-box-success { border-left-color:#22c55e; }
+  .perm-pills { display:flex; flex-wrap:wrap; gap:4px; margin-bottom:10px; }
+  .perm-pill { padding:2px 8px; border-radius:4px; font-size:10px; font-weight:600; background:var(--bg-base); border:1px solid var(--border); color:var(--text-secondary); font-family:'JetBrains Mono',monospace; }
+  .tab-bar { display:flex; gap:0; margin-bottom:14px; border-bottom:2px solid var(--border); }
+  .tab-btn { padding:8px 16px; font-size:12px; font-weight:600; color:var(--text-muted); background:none; border:none; cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-2px; transition:all .15s; }
+  .tab-btn:hover { color:var(--text-primary); }
+  .tab-btn.active { color:var(--accent); border-bottom-color:var(--accent); }
+  .tab-panel { display:none; }
+  .tab-panel.active { display:block; }
+</style>
+
+<div class="chart-card" style="margin-bottom:20px">
+  <div class="chart-header">
+    <div>
+      <div class="chart-title">SecOps — Setup Guide</div>
+      <div class="chart-subtitle">IAM permissions, profile configuration and compliance frameworks for security scanning</div>
+    </div>
+  </div>
+  <div style="padding:0 4px 8px">
+
+    <!-- Step 1: Overview -->
+    <div class="guide-section">
+      <h2><span class="step-badge">1</span> Overview</h2>
+      <p>
+        SecOps scans your AWS account using <strong>read-only boto3 API calls</strong> across 24 services — no agents, no
+        third-party tools, no write permissions required. It produces compliance scores against CIS, HIPAA, ISO 27001, and WAFR frameworks.
+      </p>
+      <div class="note-box">
+        All checks are <strong>read-only</strong>. SecOps never creates, modifies, or deletes any AWS resource.
+      </div>
+    </div>
+
+    <!-- Step 2: AWS CLI Installation -->
+    <div class="guide-section">
+      <h2><span class="step-badge">2</span> AWS CLI Installation</h2>
+      <p>AWS CLI v2 must be installed before configuring profiles. If already installed, skip to step 3.</p>
+
+      <div class="tab-bar">
+        <button class="tab-btn active" data-tab="inst-mac">macOS</button>
+        <button class="tab-btn" data-tab="inst-linux">Linux</button>
+        <button class="tab-btn" data-tab="inst-win">Windows</button>
+      </div>
+
+      <div class="tab-panel active" id="panel-inst-mac">
+        <div style="position:relative">
+          <div class="code-block" id="code-inst-mac"><span style="color:#64748b"># Option 1: Homebrew (recommended)</span>
+<span style="color:#00ff41">$</span> brew install awscli
+
+<span style="color:#64748b"># Option 2: Official PKG installer</span>
+<span style="color:#00ff41">$</span> curl "https://awscli.amazonaws.com/AWSCLIV2.pkg" -o "AWSCLIV2.pkg"
+<span style="color:#00ff41">$</span> sudo installer -pkg AWSCLIV2.pkg -target /
+
+<span style="color:#64748b"># Verify</span>
+<span style="color:#00ff41">$</span> aws --version
+aws-cli/2.x.x Python/3.x.x Darwin/...</div>
+          <button class="copy-btn" onclick="copyBlock('code-inst-mac',this)">Copy</button>
+        </div>
+      </div>
+
+      <div class="tab-panel" id="panel-inst-linux">
+        <div style="position:relative">
+          <div class="code-block" id="code-inst-linux"><span style="color:#64748b"># x86_64</span>
+<span style="color:#00ff41">$</span> curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+<span style="color:#00ff41">$</span> unzip awscliv2.zip && sudo ./aws/install
+
+<span style="color:#64748b"># ARM64 (Graviton)</span>
+<span style="color:#00ff41">$</span> curl "https://awscli.amazonaws.com/awscli-exe-linux-aarch64.zip" -o "awscliv2.zip"
+<span style="color:#00ff41">$</span> unzip awscliv2.zip && sudo ./aws/install
+
+<span style="color:#64748b"># Verify</span>
+<span style="color:#00ff41">$</span> aws --version</div>
+          <button class="copy-btn" onclick="copyBlock('code-inst-linux',this)">Copy</button>
+        </div>
+      </div>
+
+      <div class="tab-panel" id="panel-inst-win">
+        <div style="position:relative">
+          <div class="code-block" id="code-inst-win"><span style="color:#64748b"># Option 1: winget</span>
+<span style="color:#00ff41">PS&gt;</span> winget install -e --id Amazon.AWSCLI
+
+<span style="color:#64748b"># Option 2: Download MSI installer from</span>
+<span style="color:#64748b"># https://awscli.amazonaws.com/AWSCLIV2.msi</span>
+
+<span style="color:#64748b"># Verify</span>
+<span style="color:#00ff41">PS&gt;</span> aws --version</div>
+          <button class="copy-btn" onclick="copyBlock('code-inst-win',this)">Copy</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 2: Required Permissions -->
+    <div class="guide-section">
+      <h2><span class="step-badge">3</span> Required Permissions by Service</h2>
+      <div class="perm-grid">
+        <div class="perm-card">
+          <div class="perm-card-title">IAM</div>
+          <ul>
+            <li>iam:GetAccountSummary</li>
+            <li>iam:GetAccountPasswordPolicy</li>
+            <li>iam:GenerateCredentialReport</li>
+            <li>iam:GetCredentialReport</li>
+            <li>iam:ListPolicies</li>
+            <li>iam:GetPolicyVersion</li>
+            <li>iam:ListEntitiesForPolicy</li>
+          </ul>
+        </div>
+        <div class="perm-card">
+          <div class="perm-card-title">S3</div>
+          <ul>
+            <li>s3:GetPublicAccessBlock</li>
+            <li>s3:ListAllMyBuckets</li>
+            <li>s3:GetBucketLocation</li>
+            <li>s3:GetBucketPublicAccessBlock</li>
+            <li>s3:GetEncryptionConfiguration</li>
+            <li>s3:GetBucketLogging</li>
+            <li>s3:GetBucketVersioning</li>
+          </ul>
+        </div>
+        <div class="perm-card">
+          <div class="perm-card-title">EC2 &amp; VPC</div>
+          <ul>
+            <li>ec2:DescribeRegions</li>
+            <li>ec2:DescribeInstances</li>
+            <li>ec2:DescribeSecurityGroups</li>
+            <li>ec2:GetEbsDefaultKmsKeyId</li>
+            <li>ec2:DescribeVpcs</li>
+            <li>ec2:DescribeFlowLogs</li>
+            <li>ec2:DescribeNetworkInterfaces</li>
+          </ul>
+        </div>
+        <div class="perm-card">
+          <div class="perm-card-title">CloudTrail</div>
+          <ul>
+            <li>cloudtrail:DescribeTrails</li>
+            <li>cloudtrail:GetTrailStatus</li>
+            <li>cloudtrail:GetEventSelectors</li>
+          </ul>
+        </div>
+        <div class="perm-card">
+          <div class="perm-card-title">GuardDuty</div>
+          <ul>
+            <li>guardduty:ListDetectors</li>
+            <li>guardduty:GetDetector</li>
+            <li>guardduty:ListFindings</li>
+            <li>guardduty:GetFindings</li>
+          </ul>
+        </div>
+        <div class="perm-card">
+          <div class="perm-card-title">RDS</div>
+          <ul>
+            <li>rds:DescribeDBInstances</li>
+            <li>rds:DescribeDBClusters</li>
+          </ul>
+        </div>
+        <div class="perm-card">
+          <div class="perm-card-title">KMS</div>
+          <ul>
+            <li>kms:ListKeys</li>
+            <li>kms:GetKeyRotationStatus</li>
+            <li>kms:DescribeKey</li>
+          </ul>
+        </div>
+        <div class="perm-card">
+          <div class="perm-card-title">Lambda</div>
+          <ul>
+            <li>lambda:ListFunctions</li>
+            <li>lambda:GetFunctionConfiguration</li>
+            <li>lambda:GetPolicy</li>
+          </ul>
+        </div>
+        <div class="perm-card">
+          <div class="perm-card-title">AWS Config</div>
+          <ul>
+            <li>config:DescribeConfigurationRecorders</li>
+            <li>config:DescribeConfigurationRecorderStatus</li>
+            <li>config:DescribeConfigRules</li>
+            <li>config:GetComplianceDetailsByConfigRule</li>
+          </ul>
+        </div>
+        <div class="perm-card">
+          <div class="perm-card-title">STS</div>
+          <ul>
+            <li>sts:GetCallerIdentity</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 3: IAM Policy -->
+    <div class="guide-section">
+      <h2><span class="step-badge">4</span> IAM Policy JSON</h2>
+      <p>Create a custom IAM policy with this document and attach it to the IAM user or role used for scanning.</p>
+      <div class="perm-pills">
+        <span class="perm-pill">34 permissions</span>
+        <span class="perm-pill">10 services</span>
+        <span class="perm-pill">read-only</span>
+      </div>
+      <div style="position:relative">
+        <div class="code-block" id="policyJson">{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "SecOpsReadOnly",
+      "Effect": "Allow",
+      "Action": [
+        "sts:GetCallerIdentity",
+        "iam:GetAccountSummary", "iam:GetAccountPasswordPolicy",
+        "iam:GenerateCredentialReport", "iam:GetCredentialReport",
+        "iam:ListPolicies", "iam:GetPolicyVersion", "iam:ListEntitiesForPolicy",
+        "s3:GetPublicAccessBlock", "s3:ListAllMyBuckets", "s3:GetBucketLocation",
+        "s3:GetBucketPublicAccessBlock", "s3:GetEncryptionConfiguration",
+        "s3:GetBucketLogging", "s3:GetBucketVersioning",
+        "ec2:DescribeRegions", "ec2:DescribeInstances", "ec2:DescribeSecurityGroups",
+        "ec2:GetEbsDefaultKmsKeyId", "ec2:DescribeVpcs",
+        "ec2:DescribeFlowLogs", "ec2:DescribeNetworkInterfaces",
+        "cloudtrail:DescribeTrails", "cloudtrail:GetTrailStatus", "cloudtrail:GetEventSelectors",
+        "guardduty:ListDetectors", "guardduty:GetDetector",
+        "guardduty:ListFindings", "guardduty:GetFindings",
+        "rds:DescribeDBInstances", "rds:DescribeDBClusters",
+        "kms:ListKeys", "kms:GetKeyRotationStatus", "kms:DescribeKey",
+        "lambda:ListFunctions", "lambda:GetFunctionConfiguration", "lambda:GetPolicy",
+        "config:DescribeConfigurationRecorders", "config:DescribeConfigurationRecorderStatus",
+        "config:DescribeConfigRules", "config:GetComplianceDetailsByConfigRule"
+      ],
+      "Resource": "*"
+    }
+  ]
+}</div>
+        <button class="copy-btn" onclick="copyBlock('policyJson',this)">Copy</button>
+      </div>
+
+      <div class="note-box note-box-success">
+        <strong>Quick attach (AWS CLI):</strong> Save as <code style="color:var(--accent)">SecOpsReadOnly.json</code>, then:
+      </div>
+      <div style="position:relative">
+        <div class="code-block" id="code-attach"><span style="color:#64748b"># Inline policy — user</span>
+aws iam put-user-policy \
+  --user-name secops-reader \
+  --policy-name SecOpsReadOnly \
+  --policy-document file://SecOpsReadOnly.json
+
+<span style="color:#64748b"># Managed policy — role</span>
+aws iam create-policy \
+  --policy-name SecOpsReadOnly \
+  --policy-document file://SecOpsReadOnly.json
+
+aws iam attach-role-policy \
+  --role-name SecOpsRole \
+  --policy-arn arn:aws:iam::ACCOUNT_ID:policy/SecOpsReadOnly</div>
+        <button class="copy-btn" onclick="copyBlock('code-attach',this)">Copy</button>
+      </div>
+    </div>
+
+    <!-- Step 4: Configure AWS Profile -->
+    <div class="guide-section">
+      <h2><span class="step-badge">5</span> Configure AWS Profile</h2>
+      <p>Set up an AWS CLI profile for SecOps scanning. Choose one of the methods below.</p>
+
+      <div class="tab-bar">
+        <button class="tab-btn active" data-tab="ak">Access Key</button>
+        <button class="tab-btn" data-tab="sso">SSO (Identity Center)</button>
+        <button class="tab-btn" data-tab="role">Cross-Account Role</button>
+      </div>
+
+      <!-- Access Key -->
+      <div class="tab-panel active" id="panel-ak">
+        <p style="margin-top:4px"><strong>Step 1:</strong> Run the interactive configuration wizard:</p>
+        <div style="position:relative">
+          <div class="code-block" id="code-ak-configure"><span style="color:#00ff41">$</span> aws configure --profile secops-scanner
+AWS Access Key ID [None]: <span style="color:var(--accent)">AKIAIOSFODNN7EXAMPLE</span>
+AWS Secret Access Key [None]: <span style="color:var(--accent)">wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY</span>
+Default region name [None]: <span style="color:var(--accent)">us-east-1</span>
+Default output format [None]: <span style="color:var(--accent)">json</span></div>
+          <button class="copy-btn" onclick="copyBlock('code-ak-configure',this)">Copy</button>
+        </div>
+
+        <p><strong>Step 2:</strong> Verify the profile works:</p>
+        <div style="position:relative">
+          <div class="code-block" id="code-ak-verify"><span style="color:#00ff41">$</span> aws sts get-caller-identity --profile secops-scanner
+{
+    "UserId": "AIDACKCEVSQ6C2EXAMPLE",
+    "Account": "123456789012",
+    "Arn": "arn:aws:iam::123456789012:user/secops-reader"
+}</div>
+          <button class="copy-btn" onclick="copyBlock('code-ak-verify',this)">Copy</button>
+        </div>
+      </div>
+
+      <!-- SSO -->
+      <div class="tab-panel" id="panel-sso">
+        <p style="margin-top:4px"><strong>Step 1:</strong> Configure SSO with the interactive wizard:</p>
+        <div style="position:relative">
+          <div class="code-block" id="code-sso-configure"><span style="color:#00ff41">$</span> aws configure sso
+SSO session name (Recommended): <span style="color:var(--accent)">my-org</span>
+SSO start URL [None]: <span style="color:var(--accent)">https://my-org.awsapps.com/start</span>
+SSO region [None]: <span style="color:var(--accent)">eu-central-1</span>
+SSO registration scopes [sso:account:access]: <span style="color:var(--accent)">sso:account:access</span>
+
+<span style="color:#64748b"># Browser opens for authentication...
+# After login, select account and role:</span>
+
+Using the account ID <span style="color:var(--accent)">123456789012</span>
+Using the role name "<span style="color:var(--accent)">SecOpsReadOnly</span>"
+CLI default client Region [None]: <span style="color:var(--accent)">us-east-1</span>
+CLI default output format [None]: <span style="color:var(--accent)">json</span>
+CLI profile name [SecOpsReadOnly-123456789012]: <span style="color:var(--accent)">secops-scanner</span></div>
+          <button class="copy-btn" onclick="copyBlock('code-sso-configure',this)">Copy</button>
+        </div>
+
+        <p><strong>Step 2:</strong> Login before scanning:</p>
+        <div style="position:relative">
+          <div class="code-block" id="code-sso-login"><span style="color:#00ff41">$</span> aws sso login --sso-session my-org
+
+<span style="color:#64748b"># Verify</span>
+<span style="color:#00ff41">$</span> aws sts get-caller-identity --profile secops-scanner</div>
+          <button class="copy-btn" onclick="copyBlock('code-sso-login',this)">Copy</button>
+        </div>
+
+        <div class="note-box note-box-warn">
+          <strong>Important:</strong> SSO tokens expire. If ScanBox shows an SSO error banner, run <code style="color:var(--accent)">aws sso login --profile secops-scanner</code> to refresh.
+        </div>
+      </div>
+
+      <!-- Cross-Account Role -->
+      <div class="tab-panel" id="panel-role">
+        <p style="margin-top:4px">For scanning a target account from a source account using <code style="color:var(--accent)">sts:AssumeRole</code>:</p>
+
+        <p><strong>Step 1:</strong> In the <strong>target account</strong>, create a role with the SecOpsReadOnly policy and trust the source account.</p>
+        <p><strong>Step 2:</strong> In the <strong>source account</strong>, add <code style="color:var(--accent)">sts:AssumeRole</code> permission.</p>
+        <p><strong>Step 3:</strong> Configure the profile:</p>
+        <div style="position:relative">
+          <div class="code-block" id="code-role-config"><span style="color:#64748b"># ~/.aws/config</span>
+[profile target-account-secops]
+role_arn        = arn:aws:iam::123456789012:role/SecOpsReadOnly
+source_profile  = my-admin-profile
+region          = us-east-1</div>
+          <button class="copy-btn" onclick="copyBlock('code-role-config',this)">Copy</button>
+        </div>
+
+        <p><strong>Step 4:</strong> Verify:</p>
+        <div style="position:relative">
+          <div class="code-block" id="code-role-verify"><span style="color:#00ff41">$</span> aws sts get-caller-identity --profile target-account-secops
+{
+    "UserId": "AROA3XFRBF23:botocore-session",
+    "Account": "123456789012",
+    "Arn": "arn:aws:sts::123456789012:assumed-role/SecOpsReadOnly/botocore-session"
+}</div>
+          <button class="copy-btn" onclick="copyBlock('code-role-verify',this)">Copy</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 5: Supported Frameworks -->
+    <div class="guide-section">
+      <h2><span class="step-badge">6</span> Supported Compliance Frameworks</h2>
+      <p>SecOps maps every finding to one or more compliance frameworks. Each scan produces scores per framework.</p>
+      <div class="perm-grid" style="grid-template-columns:repeat(auto-fill,minmax(220px,1fr))">
+        <div class="perm-card">
+          <div class="perm-card-title">WAFR — Well-Architected</div>
+          <ul style="font-family:inherit">
+            <li>Security</li>
+            <li>Operational Excellence</li>
+            <li>Reliability</li>
+            <li>Performance Efficiency</li>
+            <li>Cost Optimization</li>
+            <li>Sustainability</li>
+          </ul>
+        </div>
+        <div class="perm-card">
+          <div class="perm-card-title">CIS AWS Foundations v3</div>
+          <ul style="font-family:inherit">
+            <li>Identity &amp; Access Management</li>
+            <li>Storage</li>
+            <li>Logging</li>
+            <li>Monitoring</li>
+            <li>Networking</li>
+          </ul>
+        </div>
+        <div class="perm-card">
+          <div class="perm-card-title">HIPAA Security Rule</div>
+          <ul style="font-family:inherit">
+            <li>164.308 — Administrative Safeguards</li>
+            <li>164.312 — Technical Safeguards</li>
+          </ul>
+        </div>
+        <div class="perm-card">
+          <div class="perm-card-title">ISO/IEC 27001:2022</div>
+          <ul style="font-family:inherit">
+            <li>A.9 — Access Control</li>
+            <li>A.10 — Cryptography</li>
+            <li>A.12 — Operations Security</li>
+            <li>A.13 — Communications Security</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 6: Verification -->
+    <div class="guide-section">
+      <h2><span class="step-badge">7</span> Verification</h2>
+      <p>Test that your profile has all required permissions for SecOps scanning:</p>
+      <div style="position:relative">
+        <div class="code-block" id="code-verify"><span style="color:#64748b"># 1. Verify identity</span>
+<span style="color:#00ff41">$</span> aws sts get-caller-identity --profile secops-scanner
+
+<span style="color:#64748b"># 2. Test IAM access</span>
+<span style="color:#00ff41">$</span> aws iam get-account-summary --profile secops-scanner
+
+<span style="color:#64748b"># 3. Test S3 access</span>
+<span style="color:#00ff41">$</span> aws s3api get-public-access-block --profile secops-scanner
+
+<span style="color:#64748b"># 4. Test CloudTrail access</span>
+<span style="color:#00ff41">$</span> aws cloudtrail describe-trails --profile secops-scanner</div>
+        <button class="copy-btn" onclick="copyBlock('code-verify',this)">Copy</button>
+      </div>
+
+      <div class="note-box note-box-success">
+        If all commands return results without <code style="color:var(--accent)">AccessDenied</code> errors, your profile is ready.
+        Click <strong>Dashboard</strong> in the left menu to start scanning.
+      </div>
+    </div>
+
+  </div>
+</div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+/* Tab switching — scoped per tab-bar */
+document.querySelectorAll('.tab-bar').forEach(function(bar) {
+  var btns = bar.querySelectorAll('.tab-btn');
+  btns.forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      btns.forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      var parent = bar.parentElement;
+      parent.querySelectorAll('.tab-panel').forEach(function(p) { p.classList.remove('active'); });
+      var panel = document.getElementById('panel-' + btn.dataset.tab);
+      if (panel) panel.classList.add('active');
+    });
+  });
+});
+
+/* Copy button */
+function copyBlock(id, btn) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  navigator.clipboard.writeText(el.textContent).then(function() {
+    var orig = btn.textContent;
+    btn.textContent = 'Copied!';
+    btn.style.color = '#16a34a';
+    setTimeout(function() { btn.textContent = orig; btn.style.color = ''; }, 2000);
+  });
+}
+</script>
+{% endblock %}

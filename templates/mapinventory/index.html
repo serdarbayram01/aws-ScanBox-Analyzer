@@ -1,0 +1,512 @@
+{% extends "base.html" %}
+
+{% block title %}Map Inventory — AWS ScanBox{% endblock %}
+{% block page_title %}<span data-i18n="mapinv_title">Map Inventory</span>{% endblock %}
+{% block page_subtitle %}<span data-i18n="mapinv_subtitle">AWS Resource Inventory & Mapping</span>{% endblock %}
+
+{% block sidebar_sections %}
+<div class="nav-section-label" data-i18n="nav_section_main">Main</div>
+<a class="nav-item active" data-section="dashboard" href="/mapinventory#dashboard">
+  <span class="nav-icon">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+      <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+    </svg>
+  </span>
+  <span class="nav-label" data-i18n="nav_dashboard">Dashboard</span>
+</a>
+
+<div class="nav-section-label" data-i18n="nav_section_tools">Tools</div>
+<a class="nav-item" data-section="reports" href="/mapinventory#reports">
+  <span class="nav-icon">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+      <polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+    </svg>
+  </span>
+  <span class="nav-label" data-i18n="nav_reports">Reports</span>
+</a>
+
+<div class="nav-section-label" data-i18n="nav_section_help">Help</div>
+<a class="nav-item" href="/mapinventory/guide">
+  <span class="nav-icon">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+      <line x1="9" y1="9" x2="15" y2="9"/><line x1="9" y1="13" x2="13" y2="13"/>
+    </svg>
+  </span>
+  <span class="nav-label" data-i18n="nav_guide">Setup Guide</span>
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="page-body" id="pageBody">
+
+  <!-- ===== SECTION: Dashboard ===== -->
+  <div class="page-section" id="section-dashboard">
+
+    <!-- All Profiles — Collapsible -->
+    <div class="all-profiles-section open" id="profileSection">
+      <div class="all-profiles-toggle" onclick="toggleProfileSection()">
+        <div class="all-profiles-toggle-left">
+          <span class="all-profiles-label" data-i18n="profile_selector_label">AWS Profiles</span>
+          <span class="all-profiles-count" id="profileCount">—</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font-size:11px;color:var(--text-muted)" id="selectedProfileLabel"></span>
+          <button class="btn btn-primary btn-sm" id="scanBtn" disabled
+                  onclick="startScan();event.stopPropagation()" data-i18n="mapinv_scan">Scan Inventory</button>
+          <span class="all-profiles-chevron">▼</span>
+        </div>
+      </div>
+      <div class="all-profiles-body">
+        <div class="all-profiles-actions" style="flex-wrap:wrap">
+          <button class="btn btn-outline btn-sm" onclick="selectAllProfiles()" data-i18n="profile_select_all">Select All</button>
+          <button class="btn btn-outline btn-sm" onclick="clearProfiles()" data-i18n="profile_clear">Clear</button>
+          <span style="margin-left:auto;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-muted);cursor:pointer;white-space:nowrap">
+              <input type="checkbox" id="excludeDefaults" checked style="accent-color:var(--accent)">
+              <span data-i18n="mapinv_exclude_defaults">Exclude default AWS resources</span>
+            </label>
+            <!-- Service picker -->
+            <div id="servicePicker" style="position:relative">
+              <button class="btn btn-outline btn-sm" id="servicePickerBtn" onclick="toggleServiceDropdown()" style="min-width:120px;text-align:left">
+                <span id="servicePickerLabel">Quick Scan</span> <span style="float:right;opacity:.6">▼</span>
+              </button>
+              <div id="serviceDropdown" style="display:none;position:absolute;right:0;top:calc(100% + 4px);z-index:9999;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;width:260px;box-shadow:0 8px 32px rgba(0,0,0,.4);overflow:hidden">
+                <div id="serviceDropdownContent" style="font-size:11px;color:var(--text-muted);padding:8px">Loading...</div>
+              </div>
+            </div>
+            <!-- Region picker -->
+            <div class="region-picker" id="regionPicker" style="position:relative">
+              <button class="btn btn-outline btn-sm" id="regionPickerBtn" onclick="toggleRegionDropdown()" style="min-width:110px;text-align:left">
+                <span id="regionPickerLabel" data-i18n="mapinv_all_regions">All Regions</span> <span style="float:right;opacity:.6">▼</span>
+              </button>
+              <div id="regionDropdown" style="display:none;position:absolute;right:0;top:calc(100% + 4px);z-index:9999;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;width:230px;box-shadow:0 8px 32px rgba(0,0,0,.4)">
+                <div id="regionDropdownContent" style="font-size:11px;color:var(--text-muted);padding:8px">
+                  <span data-i18n="mapinv_select_profile_first">Select a profile first</span>
+                </div>
+              </div>
+            </div>
+          </span>
+        </div>
+        <!-- Profile Search -->
+        <div class="profile-search-container">
+          <div class="profile-search-wrapper">
+            <span class="profile-search-icon">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            </span>
+            <input type="text"
+                   id="mapinvProfileSearchInput"
+                   class="profile-search-input"
+                   data-i18n="profile_search_placeholder"
+                   placeholder="Search profiles..."
+                   oninput="onMapinvProfileSearch(this.value)"
+                   autocomplete="off"
+                   spellcheck="false">
+            <button id="mapinvProfileSearchClear"
+                    class="profile-search-clear"
+                    style="display:none"
+                    onclick="clearMapinvProfileSearch()"
+                    aria-label="Clear search">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="profile-grid" id="profileList">
+          <div style="color:var(--text-muted);font-size:13px;padding:10px;grid-column:1/-1">
+            <span class="spinner"></span> <span data-i18n="state_loading">Loading...</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SSO / Credential Warning Banner -->
+    <div id="ssoBanner" style="display:none;background:#3d1a1a;border:1px solid #c0392b;border-radius:8px;padding:8px 14px;margin-bottom:10px;font-size:12px;color:#f5c6c6;align-items:center;gap:8px;flex-wrap:wrap">
+      <span id="ssoBannerMsg" style="display:contents"></span>
+    </div>
+
+    <!-- Progress Bar (hidden until scan starts) -->
+    <div id="progressSection" style="display:none;margin-bottom:16px">
+      <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:14px 18px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <span style="font-size:13px;font-weight:600;color:var(--text-primary)" data-i18n="mapinv_scanning">Scanning inventory...</span>
+          <span id="progressLabel" style="font-size:12px;color:var(--accent);font-weight:600">0%</span>
+        </div>
+        <div style="background:var(--bg-base);border-radius:4px;height:8px;overflow:hidden">
+          <div id="progressBar" style="height:100%;background:linear-gradient(90deg,var(--accent),#f0c040);border-radius:4px;transition:width .3s;width:0%"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:6px">
+          <span id="progressService" style="font-size:11px;color:var(--text-muted)">—</span>
+          <span id="progressCount" style="font-size:11px;color:var(--text-muted)">0 / 0</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Scan Info Bar -->
+    <div id="scanInfoBar" style="display:none;margin-bottom:16px;padding:10px 16px;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;align-items:center;gap:20px;flex-wrap:wrap">
+      <span style="display:flex;align-items:center;gap:8px;font-size:13px">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <span style="color:var(--text-muted)">Profile:</span>
+        <span id="infoProfile" style="font-weight:600;color:var(--text-primary)">—</span>
+      </span>
+      <span style="display:flex;align-items:center;gap:8px;font-size:13px">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+        <span style="color:var(--text-muted)">Account:</span>
+        <code id="infoAccountId" style="font-size:12px;font-family:monospace;color:var(--accent);font-weight:700">—</code>
+      </span>
+      <span style="display:flex;align-items:center;gap:8px;font-size:13px">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        <span style="color:var(--text-muted)">Scan:</span>
+        <span id="infoScanTime" style="color:var(--text-secondary);font-size:12px">—</span>
+      </span>
+      <span style="display:flex;align-items:center;gap:8px;font-size:13px">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        <span style="color:var(--text-muted)" data-i18n="mapinv_cache">Cache:</span>
+        <span id="infoCacheAge" style="color:var(--text-secondary);font-size:12px">—</span>
+        <button class="btn btn-outline btn-sm" style="font-size:10px;padding:2px 8px" id="clearCacheBtn" onclick="clearProfileCache()" title="Clear cache">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+        </button>
+      </span>
+    </div>
+
+    <!-- Scan History — Collapsible -->
+    <div class="all-profiles-section" id="scanHistorySection" style="margin-bottom:16px">
+      <div class="all-profiles-toggle" onclick="toggleScanHistory()">
+        <div class="all-profiles-toggle-left">
+          <span class="all-profiles-label" data-i18n="mapinv_scan_history">Scan History</span>
+          <span class="all-profiles-count" id="scanHistoryCount">—</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <button class="btn btn-outline btn-sm" onclick="loadScanHistory();event.stopPropagation()" title="Refresh" style="font-size:10px;padding:2px 8px">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+          </button>
+          <span class="all-profiles-chevron">▼</span>
+        </div>
+      </div>
+      <div class="all-profiles-body">
+        <div id="scanHistoryList" style="padding:8px 0">
+          <div style="text-align:center;padding:16px;color:var(--text-muted);font-size:12px" data-i18n="state_loading">Loading...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Scan Statistics Dashboard (hidden until scan completes) -->
+    <div id="scanStatsSection" style="display:none;margin-bottom:20px">
+      <div id="scanStatsCards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:12px"></div>
+      <div id="scanStatsDetail" style="display:none;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:16px;max-height:400px;overflow-y:auto">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <span id="scanStatsDetailTitle" style="font-size:14px;font-weight:600;color:var(--text-primary)"></span>
+          <button class="btn btn-outline btn-sm" onclick="document.getElementById('scanStatsDetail').style.display='none'" style="font-size:10px;padding:2px 8px">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <div id="scanStatsDetailBody"></div>
+      </div>
+    </div>
+
+    <!-- Summary & Charts — Collapsible Section -->
+    <div class="all-profiles-section open" id="chartsSection">
+      <div class="all-profiles-toggle" onclick="toggleChartsSection()">
+        <div class="all-profiles-toggle-left">
+          <span class="all-profiles-label" data-i18n="mapinv_overview">Overview & Charts</span>
+          <span class="all-profiles-count" id="overviewResourceCount">—</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font-size:11px;color:var(--text-muted)" id="overviewSummaryLabel"></span>
+          <span class="all-profiles-chevron">▼</span>
+        </div>
+      </div>
+      <div class="all-profiles-body">
+
+        <!-- Summary Metric Cards -->
+        <div class="metric-grid" id="metricCards">
+          <div class="metric-card" style="grid-column:1/-1;text-align:center;padding:40px">
+            <div class="state-empty">
+              <div class="state-empty-icon">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.3" stroke-linecap="round">
+                  <circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                </svg>
+              </div>
+              <div class="state-empty-text" data-i18n="mapinv_empty_title">Select profiles and scan inventory</div>
+              <div class="state-empty-sub" data-i18n="mapinv_empty_sub">Choose AWS profiles above and click "Scan Inventory" to discover all resources.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Charts Row 1: Radar | Region Bar | Service Distribution (hidden until scan) -->
+        <div id="chartsRow1" style="display:none;margin-bottom:20px">
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px">
+            <!-- Service Radar -->
+            <div class="chart-card" style="display:flex;flex-direction:column">
+              <div class="chart-header">
+                <div>
+                  <div class="chart-title" data-i18n="mapinv_svc_radar">Service Radar</div>
+                  <div class="chart-subtitle" data-i18n="mapinv_svc_radar_sub">Resource count by service category</div>
+                </div>
+              </div>
+              <div style="position:relative;flex:1;min-height:380px;overflow:hidden"><canvas id="radarChart"></canvas></div>
+            </div>
+            <!-- Region Bar Chart -->
+            <div class="chart-card" style="display:flex;flex-direction:column">
+              <div class="chart-header">
+                <div class="chart-title" data-i18n="mapinv_region_dist">Region Distribution</div>
+              </div>
+              <div style="overflow-y:auto;max-height:420px" id="regionBarWrap">
+                <div class="chart-container" style="position:relative"><canvas id="regionBarChart"></canvas></div>
+              </div>
+            </div>
+            <!-- Service Distribution Donut -->
+            <div class="chart-card" style="display:flex;flex-direction:column">
+              <div class="chart-header">
+                <div class="chart-title" data-i18n="mapinv_svc_dist">Service Distribution</div>
+              </div>
+              <div style="position:relative;flex:1;min-height:380px;overflow:hidden"><canvas id="serviceDonutChart"></canvas></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Charts Row 2: Type Breakdown Bar | Default vs Non-Default (hidden until scan) -->
+        <div id="chartsRow2" style="display:none;margin-bottom:20px">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+            <!-- Resource Type Bar -->
+            <div class="chart-card" style="display:flex;flex-direction:column">
+              <div class="chart-header">
+                <div class="chart-title" data-i18n="mapinv_type_breakdown">Resource Type Breakdown</div>
+              </div>
+              <div style="overflow-y:auto;max-height:420px">
+                <div class="chart-container" id="typeBarWrap" style="position:relative">
+                  <canvas id="typeBarChart"></canvas>
+                </div>
+              </div>
+            </div>
+            <!-- Default vs Non-Default -->
+            <div class="chart-card" style="display:flex;flex-direction:column">
+              <div class="chart-header">
+                <div class="chart-title" data-i18n="mapinv_default_split">Default vs Custom Resources</div>
+              </div>
+              <div style="position:relative;flex:1;min-height:380px;overflow:hidden"><canvas id="defaultDonutChart"></canvas></div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /all-profiles-body -->
+    </div><!-- /chartsSection -->
+
+    <!-- Filters Row -->
+    <div id="filtersRow" style="display:none;margin-bottom:16px">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:10px 16px;background:var(--bg-card);border:1px solid var(--border);border-radius:8px">
+        <input type="text" id="resourceSearch" placeholder="Search..."
+          oninput="applyFilters()"
+          style="padding:5px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg-base);color:var(--text-primary);font-size:12px;min-width:160px">
+        <!-- Service Filter Dropdown -->
+        <div class="filter-dropdown" id="filterServiceWrap" style="position:relative">
+          <button class="btn btn-outline btn-sm" onclick="toggleFilterDropdown('service')" style="min-width:130px;text-align:left">
+            <span id="filterServiceLabel" data-i18n="mapinv_all_services">All Services</span> <span style="float:right;opacity:.6">▼</span>
+          </button>
+          <div id="filterServiceDropdown" class="filter-dd-panel" style="display:none">
+            <div style="position:sticky;top:0;z-index:1;background:var(--bg-card);padding:8px 8px 0">
+              <input type="text" class="filter-dd-search" id="filterServiceSearch" placeholder="Search services..."
+                oninput="filterDropdownSearch('service')"
+                style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg-base);color:var(--text-primary);font-size:12px;box-sizing:border-box;margin-bottom:6px">
+              <div style="display:flex;gap:6px;padding-bottom:8px;border-bottom:1px solid var(--border)">
+                <button class="btn btn-outline btn-sm" onclick="filterSelectAll('service')" style="font-size:10px;padding:2px 8px;flex:1">All</button>
+                <button class="btn btn-outline btn-sm" onclick="filterClear('service')" style="font-size:10px;padding:2px 8px;flex:1">Clear</button>
+              </div>
+            </div>
+            <div id="filterServiceList" style="max-height:240px;overflow-y:auto;padding:4px 0"></div>
+            <div id="filterServiceFooter" style="display:none;padding:6px 12px;font-size:11px;font-weight:600;color:var(--accent);border-top:1px solid var(--border)"></div>
+          </div>
+        </div>
+        <!-- Region Filter Dropdown -->
+        <div class="filter-dropdown" id="filterRegionWrap" style="position:relative">
+          <button class="btn btn-outline btn-sm" onclick="toggleFilterDropdown('region')" style="min-width:130px;text-align:left">
+            <span id="filterRegionLabel" data-i18n="mapinv_all_regions">All Regions</span> <span style="float:right;opacity:.6">▼</span>
+          </button>
+          <div id="filterRegionDropdown" class="filter-dd-panel" style="display:none">
+            <div style="position:sticky;top:0;z-index:1;background:var(--bg-card);padding:8px 8px 0">
+              <input type="text" class="filter-dd-search" id="filterRegionSearch" placeholder="Search regions..."
+                oninput="filterDropdownSearch('region')"
+                style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg-base);color:var(--text-primary);font-size:12px;box-sizing:border-box;margin-bottom:6px">
+              <div style="display:flex;gap:6px;padding-bottom:8px;border-bottom:1px solid var(--border)">
+                <button class="btn btn-outline btn-sm" onclick="filterSelectAll('region')" style="font-size:10px;padding:2px 8px;flex:1">All</button>
+                <button class="btn btn-outline btn-sm" onclick="filterClear('region')" style="font-size:10px;padding:2px 8px;flex:1">Clear</button>
+              </div>
+            </div>
+            <div id="filterRegionList" style="max-height:240px;overflow-y:auto;padding:4px 0"></div>
+            <div id="filterRegionFooter" style="display:none;padding:6px 12px;font-size:11px;font-weight:600;color:var(--accent);border-top:1px solid var(--border)"></div>
+          </div>
+        </div>
+        <!-- Type Filter Dropdown -->
+        <div class="filter-dropdown" id="filterTypeWrap" style="position:relative">
+          <button class="btn btn-outline btn-sm" onclick="toggleFilterDropdown('type')" style="min-width:130px;text-align:left">
+            <span id="filterTypeLabel" data-i18n="mapinv_all_types">All Types</span> <span style="float:right;opacity:.6">▼</span>
+          </button>
+          <div id="filterTypeDropdown" class="filter-dd-panel" style="display:none">
+            <div style="position:sticky;top:0;z-index:1;background:var(--bg-card);padding:8px 8px 0">
+              <input type="text" class="filter-dd-search" id="filterTypeSearch" placeholder="Search types..."
+                oninput="filterDropdownSearch('type')"
+                style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg-base);color:var(--text-primary);font-size:12px;box-sizing:border-box;margin-bottom:6px">
+              <div style="display:flex;gap:6px;padding-bottom:8px;border-bottom:1px solid var(--border)">
+                <button class="btn btn-outline btn-sm" onclick="filterSelectAll('type')" style="font-size:10px;padding:2px 8px;flex:1">All</button>
+                <button class="btn btn-outline btn-sm" onclick="filterClear('type')" style="font-size:10px;padding:2px 8px;flex:1">Clear</button>
+              </div>
+            </div>
+            <div id="filterTypeList" style="max-height:240px;overflow-y:auto;padding:4px 0"></div>
+            <div id="filterTypeFooter" style="display:none;padding:6px 12px;font-size:11px;font-weight:600;color:var(--accent);border-top:1px solid var(--border)"></div>
+          </div>
+        </div>
+        <button class="btn btn-outline btn-sm" onclick="clearResourceFilters()" data-i18n="profile_clear">Clear</button>
+        <div style="flex:1"></div>
+        <span id="filterResultCount" style="font-size:12px;color:var(--text-muted)"></span>
+        <button class="btn btn-primary btn-sm" id="generateReportBtn" onclick="saveAndGoToReports()" style="display:inline-flex;align-items:center;gap:6px">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          <span data-i18n="mapinv_generate_report">Generate Report</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Service Table (hidden until scan) -->
+    <div id="serviceTableSection" style="display:none;margin-bottom:20px">
+      <div class="table-card">
+        <div class="table-card-header">
+          <div class="table-card-title" data-i18n="mapinv_services">Services</div>
+        </div>
+        <div style="overflow-x:auto">
+          <table class="data-table" id="serviceTable">
+            <thead>
+              <tr>
+                <th style="width:30px"></th>
+                <th onclick="sortServiceTable('service')" style="cursor:pointer" data-i18n="mapinv_col_service">Service <span id="sortInd_service" style="opacity:.5">↕</span></th>
+                <th onclick="sortServiceTable('count')" style="cursor:pointer" data-i18n="mapinv_col_resources">Resources <span id="sortInd_count" style="opacity:.5">↕</span></th>
+                <th data-i18n="mapinv_col_types">Types</th>
+                <th data-i18n="mapinv_col_regions">Regions</th>
+                <th style="width:50px"></th>
+              </tr>
+            </thead>
+            <tbody id="serviceTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Resource Detail Panel (hidden until service click) -->
+    <div id="detailPanel" style="display:none;margin-bottom:20px">
+      <div class="table-card">
+        <div class="table-card-header" style="flex-wrap:wrap;gap:10px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <button class="btn btn-outline btn-sm" onclick="closeDetailPanel()" title="Back">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+            </button>
+            <div class="table-card-title" id="detailTitle">—</div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <input type="text" id="detailSearch" placeholder="Search..."
+              oninput="filterDetailTable()"
+              style="padding:5px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg-base);color:var(--text-primary);font-size:12px;min-width:130px">
+            <!-- Detail Type Filter Dropdown -->
+            <div class="filter-dropdown" id="detailTypeWrap" style="position:relative;display:none">
+              <button class="btn btn-outline btn-sm" onclick="toggleDetailTypeDropdown()" style="min-width:110px;text-align:left">
+                <span id="detailTypeLabel">All Types</span> <span style="float:right;opacity:.6">▼</span>
+              </button>
+              <div id="detailTypeDropdown" class="filter-dd-panel" style="display:none;right:0;left:auto">
+                <div style="position:sticky;top:0;z-index:1;background:var(--bg-card);padding:8px 8px 0">
+                  <input type="text" class="filter-dd-search" id="detailTypeSearch" placeholder="Search types..."
+                    oninput="filterDetailTypeSearch()"
+                    style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg-base);color:var(--text-primary);font-size:12px;box-sizing:border-box;margin-bottom:6px">
+                  <div style="display:flex;gap:6px;padding-bottom:8px;border-bottom:1px solid var(--border)">
+                    <button class="btn btn-outline btn-sm" onclick="detailTypeSelectAll()" style="font-size:10px;padding:2px 8px;flex:1">All</button>
+                    <button class="btn btn-outline btn-sm" onclick="detailTypeClear()" style="font-size:10px;padding:2px 8px;flex:1">Clear</button>
+                  </div>
+                </div>
+                <div id="detailTypeList" style="max-height:240px;overflow-y:auto;padding:4px 0"></div>
+                <div id="detailTypeFooter" style="display:none;padding:6px 12px;font-size:11px;font-weight:600;color:var(--accent);border-top:1px solid var(--border)"></div>
+              </div>
+            </div>
+            <span id="detailCount" style="font-size:12px;color:var(--text-muted)"></span>
+          </div>
+        </div>
+        <div style="overflow-x:auto">
+          <table class="data-table" id="detailTable">
+            <thead id="detailTableHead"></thead>
+            <tbody id="detailTableBody"></tbody>
+          </table>
+        </div>
+        <div id="detailPagination" style="padding:12px 20px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"></div>
+      </div>
+    </div>
+
+    <!-- Resource JSON Popup -->
+    <div id="jsonPopup" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center">
+      <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;width:700px;max-width:90vw;max-height:80vh;display:flex;flex-direction:column">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid var(--border)">
+          <span id="jsonPopupTitle" style="font-weight:600;color:var(--text-primary);font-size:14px">Details</span>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-outline btn-sm" onclick="downloadJsonPopup()" title="Download">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            </button>
+            <button class="btn btn-outline btn-sm" onclick="closeJsonPopup()">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+        </div>
+        <pre id="jsonPopupContent" style="padding:16px 18px;margin:0;overflow:auto;flex:1;font-size:12px;font-family:'JetBrains Mono',monospace;color:var(--text-secondary);white-space:pre-wrap;word-break:break-all"></pre>
+      </div>
+    </div>
+
+    <!-- Compare Mode Panel (hidden until 2 profiles selected) -->
+    <div id="comparePanel" style="display:none;margin-bottom:20px">
+      <div class="table-card">
+        <div class="table-card-header">
+          <div class="table-card-title" data-i18n="mapinv_compare">Profile Comparison</div>
+          <button class="btn btn-outline btn-sm" onclick="closeComparePanel()" data-i18n="mapinv_close">Close</button>
+        </div>
+        <div id="compareContent" style="padding:16px"></div>
+      </div>
+    </div>
+
+  </div><!-- /section-dashboard -->
+
+  <!-- ===== SECTION: Reports ===== -->
+  <div class="page-section" id="section-reports" style="display:none">
+    <div class="table-card">
+      <div class="table-card-header">
+        <div class="table-card-title" data-i18n="mapinv_report_title">Reports</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <button class="btn btn-sm" id="deleteSelectedBtn" onclick="deleteSelectedReports()"
+                  style="display:none;background:#dc262615;color:#dc2626;border:1px solid #dc262630;gap:5px;font-size:11px;font-weight:600;transition:all .2s;align-items:center">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            <span>Delete selected</span>
+          </button>
+          <button class="btn btn-outline btn-sm" onclick="loadReportList()" title="Refresh">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+          </button>
+        </div>
+      </div>
+      <div style="overflow-x:auto">
+        <table class="data-table" id="reportListTable" style="display:none">
+          <thead>
+            <tr>
+              <th style="width:36px;text-align:center">
+                <input type="checkbox" id="reportSelectAll" onchange="toggleSelectAllReports(this)"
+                       style="accent-color:var(--accent);width:14px;height:14px;cursor:pointer">
+              </th>
+              <th>DATE</th>
+              <th>FORMATS</th>
+              <th style="width:40px"></th>
+            </tr>
+          </thead>
+          <tbody id="reportListBody"></tbody>
+        </table>
+        <div id="reportListEmpty" style="padding:40px;text-align:center;font-size:13px;color:var(--text-muted);display:none"
+             data-i18n="mapinv_report_empty">No reports yet — run a scan first.</div>
+      </div>
+    </div>
+  </div><!-- /section-reports -->
+
+</div><!-- /page-body -->
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="/static/mapinventory/js/mapinventory.js?v=20260314c"></script>
+{% endblock %}

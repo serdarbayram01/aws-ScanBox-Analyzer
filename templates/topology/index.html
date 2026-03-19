@@ -1,0 +1,461 @@
+{% extends "base.html" %}
+
+{% block title %}Network Topology — AWS ScanBox{% endblock %}
+{% block page_title %}<span data-i18n="topo_title">Network Topology</span>{% endblock %}
+{% block page_subtitle %}<span data-i18n="topo_subtitle">AWS Network Architecture Visualization</span>{% endblock %}
+
+{% block sidebar_sections %}
+<div class="nav-section-label" data-i18n="nav_section_main">Main</div>
+<a class="nav-item active" data-section="dashboard" href="/topology">
+  <span class="nav-icon">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+      <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+    </svg>
+  </span>
+  <span class="nav-label" data-i18n="nav_dashboard">Dashboard</span>
+</a>
+
+<div class="nav-section-label" data-i18n="nav_section_tools">Tools</div>
+<a class="nav-item" data-section="reports" href="/topology#reports">
+  <span class="nav-icon">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+      <polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+    </svg>
+  </span>
+  <span class="nav-label" data-i18n="nav_reports">Reports</span>
+</a>
+
+<div class="nav-section-label" data-i18n="nav_section_help">Help</div>
+<a class="nav-item" data-section="guide" href="/topology/guide">
+  <span class="nav-icon">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+      <line x1="9" y1="9" x2="15" y2="9"/><line x1="9" y1="13" x2="13" y2="13"/>
+    </svg>
+  </span>
+  <span class="nav-label" data-i18n="nav_guide">Setup Guide</span>
+</a>
+{% endblock %}
+
+{% block content %}
+<link rel="stylesheet" href="/static/topology/css/topology.css">
+<div class="page-body">
+
+<!-- ═══════ SECTION: Dashboard ═══════ -->
+<div class="page-section" id="section-dashboard">
+
+  <!-- ═══ PROFILE SECTION (MapInventory pattern) ═══ -->
+  <div class="all-profiles-section open" id="profileSection">
+    <div class="all-profiles-toggle" onclick="window._topoToggleProfileSection()">
+      <div class="all-profiles-toggle-left">
+        <span class="all-profiles-label" data-i18n="profile_selector_label">AWS Profiles</span>
+        <span class="all-profiles-count" id="profileCount">—</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:11px;color:var(--text-muted)" id="selectedProfileLabel"></span>
+        <button class="btn btn-primary btn-sm" id="scanBtn" disabled
+                onclick="window._topoStartScan();event.stopPropagation()" data-i18n="topo_scan">Start Scan</button>
+        <span class="all-profiles-chevron">▼</span>
+      </div>
+    </div>
+    <div class="all-profiles-body">
+      <div class="all-profiles-actions" style="flex-wrap:wrap">
+        <button class="btn btn-outline btn-sm" id="selectAllProfilesBtn" data-i18n="profile_select_all">Select All</button>
+        <button class="btn btn-outline btn-sm" id="clearProfilesBtn" data-i18n="profile_clear">Clear</button>
+        <span style="margin-left:auto;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-muted);cursor:pointer;white-space:nowrap">
+            <input type="checkbox" id="excludeDefaults" style="accent-color:var(--accent)">
+            <span data-i18n="mapinv_exclude_defaults">Exclude default AWS resources</span>
+          </label>
+          <!-- Region picker -->
+          <div class="region-picker" id="regionPicker" style="position:relative">
+            <button class="btn btn-outline btn-sm" id="regionPickerBtn" onclick="window._topoToggleRegionDropdown();event.stopPropagation()" style="min-width:110px;text-align:left">
+              <span id="regionPickerLabel" data-i18n="topo_select_regions">Select Regions</span> <span style="float:right;opacity:.6">▼</span>
+            </button>
+            <div id="regionDropdown" style="display:none;position:absolute;right:0;top:calc(100% + 4px);z-index:9999;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;width:230px;box-shadow:0 8px 32px rgba(0,0,0,.4)">
+              <div id="regionDropdownContent" style="font-size:11px;color:var(--text-muted);padding:8px">
+                <span data-i18n="topo_select_regions_first">Please select a profile first</span>
+              </div>
+            </div>
+          </div>
+        </span>
+      </div>
+      <!-- Profile Search -->
+      <div class="profile-search-container">
+        <div class="profile-search-wrapper">
+          <span class="profile-search-icon">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          </span>
+          <input type="text"
+                 id="topoProfileSearchInput"
+                 class="profile-search-input"
+                 data-i18n="profile_search_placeholder"
+                 placeholder="Search profiles..."
+                 autocomplete="off"
+                 spellcheck="false">
+          <button id="topoProfileSearchClear"
+                  class="profile-search-clear"
+                  style="display:none"
+                  aria-label="Clear search">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="profile-grid" id="profileList">
+        <div style="color:var(--text-muted);font-size:13px;padding:10px;grid-column:1/-1">
+          <span class="spinner"></span> <span data-i18n="state_loading">Loading...</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scan Info Bar -->
+  <div id="scanInfoBar" style="display:none;margin-bottom:16px;padding:10px 16px;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;align-items:center;gap:20px;flex-wrap:wrap">
+    <span style="display:flex;align-items:center;gap:8px;font-size:13px">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      <span style="color:var(--text-muted)">Profile:</span>
+      <span id="infoProfile" style="font-weight:600;color:var(--text-primary)">—</span>
+    </span>
+    <span style="display:flex;align-items:center;gap:8px;font-size:13px">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+      <span style="color:var(--text-muted)">Account ID:</span>
+      <code id="infoAccountId" style="font-size:12px;font-family:monospace;color:var(--accent);font-weight:700;background:rgba(255,153,0,.12);padding:2px 8px;border-radius:4px">—</code>
+    </span>
+    <span style="display:flex;align-items:center;gap:8px;font-size:13px">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      <span style="color:var(--text-muted)">Scan:</span>
+      <span id="infoScanTime" style="color:var(--text-secondary);font-size:12px">—</span>
+    </span>
+    <span style="display:flex;align-items:center;gap:8px;font-size:13px">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      <span style="color:var(--text-muted)" data-i18n="mapinv_cache">Cache</span>
+      <span id="infoCacheAge" style="color:var(--text-secondary);font-size:12px">—</span>
+      <button class="btn btn-outline btn-sm" style="font-size:10px;padding:2px 8px" id="clearCacheBtn" title="Clear cache">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+      </button>
+    </span>
+  </div>
+
+  <!-- ═══ PROGRESS BANNER ═══ -->
+  <div class="chart-card" id="progressSection" style="display:none;margin-top:12px">
+    <div style="padding:12px 16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <span id="progressMsg" style="font-size:13px;font-weight:500;color:var(--text-primary)" data-i18n="topo_scanning">Scanning network topology...</span>
+        <span id="progressPercent" style="font-size:13px;font-weight:600;color:var(--accent)">0%</span>
+      </div>
+      <div style="height:8px;background:var(--bg-base);border-radius:4px;overflow:hidden">
+        <div id="progressBar" style="height:100%;width:0%;background:linear-gradient(90deg,var(--accent),#f59e0b);border-radius:4px;transition:width .3s"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-top:6px;font-size:11px;color:var(--text-muted)">
+        <span id="progressService"></span>
+        <span id="progressCount"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ SCAN HISTORY (MapInventory collapsible pattern) ═══ -->
+  <div class="all-profiles-section" id="scanHistorySection" style="margin-bottom:16px">
+    <div class="all-profiles-toggle" onclick="window._topoToggleScanHistory()">
+      <div class="all-profiles-toggle-left">
+        <span class="all-profiles-label" data-i18n="topo_scan_history">Scan History</span>
+        <span class="all-profiles-count" id="scanHistoryCount">—</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <button class="btn btn-outline btn-sm" onclick="window._topoRefreshHistory();event.stopPropagation()" title="Refresh" style="font-size:10px;padding:2px 8px">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+        </button>
+        <span class="all-profiles-chevron">▼</span>
+      </div>
+    </div>
+    <div class="all-profiles-body">
+      <div id="scanHistoryList" style="padding:8px 0">
+        <div style="text-align:center;padding:16px;color:var(--text-muted);font-size:12px" data-i18n="state_loading">Loading...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ EMPTY STATE ═══ -->
+  <div id="emptyState" class="chart-card" style="margin-top:12px;text-align:center;padding:60px 20px">
+    <div style="color:var(--text-muted);margin-bottom:12px">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round">
+        <circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="18" r="3"/>
+        <line x1="8.5" y1="7.5" x2="15.5" y2="16.5"/><line x1="15.5" y1="7.5" x2="8.5" y2="16.5"/>
+      </svg>
+    </div>
+    <div style="font-size:16px;font-weight:600;color:var(--text-primary);margin-bottom:6px" data-i18n="topo_empty_title">Select a profile and scan</div>
+    <div style="font-size:13px;color:var(--text-muted)" data-i18n="topo_empty_sub">Choose an AWS profile, select regions, then click "Start Scan" to generate network topology.</div>
+  </div>
+
+  <!-- ═══ TOPOLOGY DASHBOARD ═══ -->
+  <div id="topoResults" style="display:none">
+
+    <!-- Summary Cards -->
+    <div class="topo-summary-cards" style="margin-top:12px">
+      <div class="chart-card topo-metric-card">
+        <div class="topo-metric-label" data-i18n="topo_vpcs">VPCs</div>
+        <div class="topo-metric-value" id="metricVpcs">0</div>
+      </div>
+      <div class="chart-card topo-metric-card">
+        <div class="topo-metric-label" data-i18n="topo_subnets">Subnets</div>
+        <div class="topo-metric-value" id="metricSubnets">0</div>
+      </div>
+      <div class="chart-card topo-metric-card">
+        <div class="topo-metric-label" data-i18n="topo_total_resources">Resources</div>
+        <div class="topo-metric-value" id="metricResources">0</div>
+      </div>
+      <div class="chart-card topo-metric-card">
+        <div class="topo-metric-label" data-i18n="topo_regions">Regions</div>
+        <div class="topo-metric-value" id="metricRegions">0</div>
+      </div>
+      <div class="chart-card topo-metric-card">
+        <div class="topo-metric-label" data-i18n="topo_scan_duration">Duration</div>
+        <div class="topo-metric-value" id="metricDuration">0s</div>
+      </div>
+    </div>
+
+    <!-- Toolbar -->
+    <div class="chart-card" style="margin-top:12px">
+      <div class="topo-toolbar">
+        <!-- View level toggle -->
+        <div class="topo-view-toggle">
+          <button class="topo-view-btn active" data-view="basic" data-i18n="topo_view_basic">Basic</button>
+          <button class="topo-view-btn" data-view="medium" data-i18n="topo_view_medium">Medium</button>
+          <button class="topo-view-btn" data-view="detailed" data-i18n="topo_view_detailed">Detailed</button>
+        </div>
+        <!-- VPC selector -->
+        <select id="vpcSelector" class="topo-select" style="min-width:180px">
+          <option value="" data-i18n="topo_all_vpcs">All VPCs</option>
+        </select>
+        <!-- Region filter -->
+        <select id="regionFilter" class="topo-select" style="min-width:140px">
+          <option value="" data-i18n="topo_all_regions">All Regions</option>
+        </select>
+        <!-- Search -->
+        <div class="topo-search-wrap">
+          <span class="topo-search-icon">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          </span>
+          <input type="text" class="topo-search-input" id="topoSearchInput" placeholder="Search resources..." data-i18n-placeholder="topo_search_placeholder">
+          <div class="topo-search-results" id="topoSearchResults"></div>
+        </div>
+        <!-- Filter panel toggle -->
+        <button class="btn-icon topo-filter-btn" id="filterToggleBtn" title="Filter resources">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+          <span data-i18n="topo_filter">Filter</span>
+        </button>
+        <!-- Export moved to Reports section -->
+      </div>
+    </div>
+
+    <!-- Filter Panel (hidden by default) -->
+    <div class="chart-card topo-filter-panel" id="filterPanel" style="display:none;margin-top:8px">
+      <div style="padding:12px 16px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <span style="font-size:13px;font-weight:600;color:var(--text-primary)" data-i18n="topo_filter_resources">Filter Resources</span>
+          <div style="display:flex;gap:8px">
+            <button class="btn-sm" id="filterSelectAll" data-i18n="profile_select_all">Select All</button>
+            <button class="btn-sm" id="filterDeselectAll" data-i18n="profile_clear">Clear</button>
+          </div>
+        </div>
+        <div id="filterChecks" class="topo-filter-checks"></div>
+      </div>
+    </div>
+
+    <!-- Legend -->
+    <div class="topo-legend" style="margin-top:8px">
+      <div class="topo-legend-item">
+        <div class="topo-legend-dot" style="background:#ff9900;border:2px solid #ff9900"></div>
+        <span>VPC</span>
+      </div>
+      <div class="topo-legend-item">
+        <div class="topo-legend-dot" style="background:transparent;border:2px dashed var(--text-muted)"></div>
+        <span>Availability Zone</span>
+      </div>
+      <div class="topo-legend-item">
+        <div class="topo-legend-dot" style="background:#22c55e"></div>
+        <span data-i18n="topo_public_subnet">Public Subnet</span>
+      </div>
+      <div class="topo-legend-item">
+        <div class="topo-legend-dot" style="background:#3b82f6"></div>
+        <span data-i18n="topo_private_subnet">Private Subnet</span>
+      </div>
+      <div class="topo-legend-item">
+        <div class="topo-legend-dot" style="background:#8c4fff"></div>
+        <span>Network Services</span>
+      </div>
+    </div>
+
+    <!-- ═══ TOPOLOGY CANVAS ═══ -->
+    <div class="chart-card" style="margin-top:4px;position:relative" id="canvasCard">
+      <div id="cyContainer" style="width:100%;height:780px;background:var(--bg-base);border-radius:8px;overflow:hidden"></div>
+      <!-- Minimap -->
+      <div class="topo-minimap" id="minimapContainer">
+        <canvas id="minimapCanvas" width="200" height="140"></canvas>
+        <div class="topo-minimap-viewport" id="minimapViewport"></div>
+        <button class="minimap-toggle" id="minimapToggle" title="Toggle minimap">&times;</button>
+      </div>
+      <!-- Watermark -->
+      <div class="topo-watermark" id="canvasWatermark"></div>
+      <!-- Map controls (top-right) -->
+      <div class="topo-map-controls" id="mapControls">
+        <button class="topo-map-btn" id="mapFullscreenBtn" title="Fullscreen">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+        </button>
+        <button class="topo-map-btn" id="mapZoomInBtn" title="Zoom In">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>
+        <div class="topo-zoom-slider-wrap">
+          <input type="range" id="mapZoomSlider" class="topo-zoom-slider" min="15" max="300" value="100" title="Zoom level">
+        </div>
+        <button class="topo-map-btn" id="mapZoomOutBtn" title="Zoom Out">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>
+        <button class="topo-map-btn" id="mapFitBtn" title="Fit to screen">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M3 9h18"/></svg>
+        </button>
+        <div style="width:100%;border-top:1px solid var(--border);margin:2px 0"></div>
+        <button class="topo-map-btn" id="mapResetBtn" title="Reset view">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+        </button>
+      </div>
+      <!-- Hover tooltip -->
+      <div id="cyTooltip" class="topo-tooltip" style="display:none"></div>
+      <!-- Node detail panel -->
+      <div id="nodeDetail" class="topo-node-detail" style="display:none"></div>
+    </div>
+
+  </div><!-- /topoResults -->
+
+  <!-- Context Menu (hidden, positioned on right-click) -->
+  <div class="topo-context-menu" id="contextMenu" style="display:none">
+    <button class="topo-context-menu-item" data-action="copy-id">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+      <span data-i18n="topo_ctx_copy_id">Copy Resource ID</span>
+    </button>
+    <button class="topo-context-menu-item" data-action="copy-arn">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+      <span data-i18n="topo_ctx_copy_arn">Copy ARN</span>
+    </button>
+    <div class="topo-context-menu-divider"></div>
+    <button class="topo-context-menu-item" data-action="filter-vpc">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+      <span data-i18n="topo_ctx_filter_vpc">Filter by this VPC</span>
+    </button>
+    <button class="topo-context-menu-item" data-action="highlight-connections">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+      <span data-i18n="topo_ctx_highlight">Highlight Connections</span>
+    </button>
+    <div class="topo-context-menu-divider"></div>
+    <button class="topo-context-menu-item" data-action="detail">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+      <span data-i18n="topo_ctx_detail">View Details</span>
+    </button>
+  </div>
+
+</div><!-- /section-dashboard -->
+
+<!-- ═══════ SECTION: Reports ═══════ -->
+<div class="page-section" id="section-reports" style="display:none">
+
+  <!-- ── Export: Diagram Formats ── -->
+  <div class="table-card" style="margin-bottom:12px">
+    <div class="table-card-header" style="display:flex;align-items:center;justify-content:space-between">
+      <div>
+        <div class="table-card-title" data-i18n="topo_export_diagram">Diagram Export</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:2px" data-i18n="topo_export_diagram_sub">Export the current topology diagram</div>
+      </div>
+    </div>
+    <div style="padding:12px 16px;display:flex;flex-wrap:wrap;gap:8px" id="diagramExportArea">
+      <button class="btn btn-outline btn-sm" id="expPngBtn" style="min-width:90px;gap:6px;display:inline-flex;align-items:center">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+        PNG (HD)
+      </button>
+      <button class="btn btn-outline btn-sm" id="expSvgBtn" style="min-width:90px;gap:6px;display:inline-flex;align-items:center">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5 12 2"/></svg>
+        SVG
+      </button>
+      <button class="btn btn-outline btn-sm" id="expPdfDiagramBtn" style="min-width:90px;gap:6px;display:inline-flex;align-items:center">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        PDF
+      </button>
+      <span style="width:1px;height:28px;background:var(--border);margin:0 4px;align-self:center"></span>
+      <button class="btn btn-outline btn-sm" id="expDrawioBtn" style="min-width:90px;gap:6px;display:inline-flex;align-items:center">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><line x1="10" y1="6.5" x2="14" y2="17.5"/></svg>
+        Draw.io
+      </button>
+      <button class="btn btn-outline btn-sm" id="expTerraformBtn" style="min-width:90px;gap:6px;display:inline-flex;align-items:center">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+        Terraform
+      </button>
+      <button class="btn btn-outline btn-sm" id="expJsonBtn" style="min-width:90px;gap:6px;display:inline-flex;align-items:center">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+        JSON
+      </button>
+      <div id="exportStatusMsg" style="display:none;font-size:11px;color:var(--accent);align-self:center;margin-left:8px"></div>
+    </div>
+  </div>
+
+  <!-- ── Export: Data Reports ── -->
+  <div class="table-card" style="margin-bottom:12px">
+    <div class="table-card-header" style="display:flex;align-items:center;justify-content:space-between">
+      <div>
+        <div class="table-card-title" data-i18n="topo_report_title">Reports</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:2px" data-i18n="topo_report_sub">Generate data reports from scan results</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <button class="btn btn-accent btn-sm" id="generateHtmlBtn" style="font-size:11px">HTML</button>
+        <button class="btn btn-accent btn-sm" id="generateCsvBtn" style="font-size:11px">CSV</button>
+        <button class="btn btn-accent btn-sm" id="generatePdfBtn" style="font-size:11px">PDF</button>
+        <button class="btn btn-accent btn-sm" id="generateAllBtn" data-i18n="topo_generate_all" style="font-size:11px;font-weight:600">Generate All</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Report History ── -->
+  <div class="table-card">
+    <div class="table-card-header" style="display:flex;align-items:center;justify-content:space-between">
+      <div class="table-card-title" data-i18n="topo_report_history">Report History</div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <button class="btn btn-sm" id="deleteSelectedReportsBtn" style="display:none;background:#dc262615;color:#dc2626;border:1px solid #dc262630;font-size:11px;font-weight:600">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+          <span data-i18n="topo_delete_selected">Delete selected</span>
+        </button>
+        <button class="btn btn-outline btn-sm" id="refreshReportsBtn" title="Refresh" style="font-size:10px;padding:2px 8px">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+        </button>
+      </div>
+    </div>
+    <div style="overflow-x:auto">
+      <table class="data-table" id="reportListTable" style="display:none">
+        <thead>
+          <tr>
+            <th style="width:36px;text-align:center">
+              <input type="checkbox" id="reportSelectAll" style="accent-color:var(--accent)">
+            </th>
+            <th data-i18n="topo_report_col_date">Date</th>
+            <th data-i18n="topo_report_col_profile">Profile</th>
+            <th data-i18n="topo_report_col_formats">Formats</th>
+            <th style="width:40px"></th>
+          </tr>
+        </thead>
+        <tbody id="reportListBody"></tbody>
+      </table>
+      <div id="reportListEmpty" style="padding:40px;text-align:center;color:var(--text-muted);font-size:13px">
+        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" style="margin-bottom:8px;opacity:.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        <div data-i18n="topo_report_empty">No reports yet — run a scan and generate reports.</div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /section-reports -->
+
+</div><!-- /page-body -->
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://cdn.jsdelivr.net/npm/@joint/core@4.2.4/dist/joint.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/elkjs@0.11.1/lib/elk.bundled.js"></script>
+<script src="/static/topology/js/topology.js"></script>
+{% endblock %}

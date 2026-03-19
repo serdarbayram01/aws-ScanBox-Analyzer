@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}AWS ScanBox Analyzer{% endblock %}</title>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+  <link rel="shortcut icon" href="/static/favicon.svg">
+  <link rel="apple-touch-icon" href="/static/favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/theme.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+<div class="app-shell">
+
+  <!-- ===== SIDEBAR ===== -->
+  <nav class="sidebar" id="sidebar">
+
+    <!-- Logo -->
+    <div class="sidebar-logo">
+      <div class="logo-icon">
+        <img src="/static/favicon.svg" alt="SB" width="44" height="44" style="display:block">
+      </div>
+      <div>
+        <div class="logo-text">ScanBox</div>
+        <div class="logo-sub">AWS SB Analyzer</div>
+      </div>
+    </div>
+
+    <!-- ── Module Switcher ── -->
+    <div class="module-switcher">
+      <div class="nav-section-label" data-i18n="nav_section_modules">Modules</div>
+
+      <a class="module-item{% if active_module == 'finops' %} active{% endif %}"
+         href="/finops" data-module="finops" title="FinOps">
+        <span class="nav-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+          </svg>
+        </span>
+        <span class="nav-label" data-i18n="nav_module_finops">FinOps</span>
+      </a>
+
+      <a class="module-item{% if active_module == 'secops' %} active{% endif %}"
+         href="/secops" data-module="secops" title="SecOps">
+        <span class="nav-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          </svg>
+        </span>
+        <span class="nav-label" data-i18n="nav_module_secops">SecOps</span>
+      </a>
+
+      <a class="module-item{% if active_module == 'mapinventory' %} active{% endif %}"
+         href="/mapinventory" data-module="mapinventory" title="Map Inventory">
+        <span class="nav-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+          </svg>
+        </span>
+        <span class="nav-label" data-i18n="nav_module_mapinventory">Map Inventory</span>
+      </a>
+
+      <a class="module-item{% if active_module == 'topology' %} active{% endif %}"
+         href="/topology" data-module="topology" title="Topology">
+        <span class="nav-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="18" r="3"/>
+            <line x1="8.5" y1="7.5" x2="15.5" y2="16.5"/><line x1="15.5" y1="7.5" x2="8.5" y2="16.5"/>
+            <line x1="6" y1="9" x2="6" y2="15"/><line x1="18" y1="9" x2="18" y2="15"/>
+          </svg>
+        </span>
+        <span class="nav-label" data-i18n="nav_module_topology">Topology</span>
+      </a>
+
+      <a class="module-item{% if active_module == 'advice' %} active{% endif %}"
+         href="/advice" data-module="advice" title="Advice">
+        <span class="nav-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+        </span>
+        <span class="nav-label" data-i18n="nav_module_advice">Advice</span>
+      </a>
+
+      <a class="module-item{% if active_module == 'health' %} active{% endif %}"
+         href="/health" data-module="health" title="Health">
+        <span class="nav-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+          </svg>
+        </span>
+        <span class="nav-label" data-i18n="nav_module_health">Health</span>
+      </a>
+
+      <a class="module-item{% if active_module == 'enjoy' %} active{% endif %}"
+         href="/enjoy" data-module="enjoy" title="Enjoy">
+        <span class="nav-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="2" y="6" width="20" height="12" rx="2"/><line x1="6" y1="12" x2="6" y2="12.01"/><line x1="10" y1="12" x2="10" y2="12.01"/><circle cx="17" cy="10" r="1"/><circle cx="15" cy="14" r="1"/>
+          </svg>
+        </span>
+        <span class="nav-label" data-i18n="nav_module_enjoy">Enjoy</span>
+      </a>
+
+      <a class="module-item{% if active_module == 'about' %} active{% endif %}"
+         href="/about" data-module="about" title="About">
+        <span class="nav-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+          </svg>
+        </span>
+        <span class="nav-label" data-i18n="nav_module_about">About</span>
+      </a>
+    </div>
+
+    <!-- ── Module-specific nav sections ── -->
+    <div class="sidebar-nav">
+      {% block sidebar_sections %}
+
+      {# ── FinOps sub-navigation (default) ── #}
+      <div class="nav-section-label" data-i18n="nav_section_main">Main</div>
+
+      {% block nav_dashboard %}
+      <a class="nav-item" data-section="dashboard" href="/finops">
+        <span class="nav-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+            <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+          </svg>
+        </span>
+        <span class="nav-label" data-i18n="nav_dashboard">Dashboard</span>
+      </a>
+      {% endblock %}
+
+      <div class="nav-section-label" data-i18n="nav_section_tools">Tools</div>
+
+      {% block nav_reports %}
+      <a class="nav-item" data-section="reports" href="/finops#reports">
+        <span class="nav-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/>
+          </svg>
+        </span>
+        <span class="nav-label" data-i18n="nav_reports">Reports</span>
+      </a>
+      {% endblock %}
+
+      <div class="nav-section-label" data-i18n="nav_section_help">Help</div>
+
+      {% block nav_guide %}
+      <a class="nav-item" data-section="guide" href="/finops/guide">
+        <span class="nav-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+            <line x1="9" y1="9" x2="15" y2="9"/><line x1="9" y1="13" x2="13" y2="13"/>
+          </svg>
+        </span>
+        <span class="nav-label" data-i18n="nav_guide">Setup Guide</span>
+      </a>
+      {% endblock %}
+
+      {% endblock sidebar_sections %}
+    </div>
+
+    <!-- Collapse button -->
+    <div class="sidebar-footer">
+      <button class="nav-item btn-ghost sidebar-collapse-btn" id="sidebarToggle">
+        <span class="nav-icon" id="collapseIcon">
+          <svg id="collapseIconSvg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="15 18 9 12 15 6"/>
+          </svg>
+        </span>
+        <span class="nav-label">Collapse</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- ===== MAIN CONTENT ===== -->
+  <div class="main-content">
+
+    <!-- Header -->
+    <header class="header">
+      <div>
+        <div class="header-title">{% block page_title %}AWS ScanBox Analyzer{% endblock %}</div>
+        <div class="header-subtitle">{% block page_subtitle %}{% endblock %}</div>
+      </div>
+      <div class="header-actions">
+        <!-- Language toggle -->
+        <div class="toggle-group">
+          <button class="toggle-btn lang-btn" data-lang="tr">TR</button>
+          <button class="toggle-btn lang-btn" data-lang="en">EN</button>
+        </div>
+        <!-- Theme toggle -->
+        <div class="toggle-group">
+          <button class="toggle-btn theme-btn" data-theme="dark" title="Dark">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+          </button>
+          <button class="toggle-btn theme-btn" data-theme="light" title="Light">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Page content -->
+    {% block content %}{% endblock %}
+
+  </div><!-- /main-content -->
+</div><!-- /app-shell -->
+
+<script>
+  /* Self-contained sidebar collapse — works on every page regardless of module JS */
+  document.addEventListener('DOMContentLoaded', () => {
+    const sidebar    = document.getElementById('sidebar');
+    const collapseBtn= document.getElementById('sidebarToggle');
+    const svgIcon    = document.getElementById('collapseIconSvg');
+    if (!sidebar || !collapseBtn) return;
+
+    const updateIcon = () => {
+      if (!svgIcon) return;
+      svgIcon.innerHTML = sidebar.classList.contains('collapsed')
+        ? '<polyline points="9 18 15 12 9 6"/>'
+        : '<polyline points="15 18 9 12 15 6"/>';
+    };
+
+    // Restore saved state
+    if (localStorage.getItem('sidebar_collapsed') === 'true') {
+      sidebar.classList.add('collapsed');
+    }
+    updateIcon();
+
+    collapseBtn.addEventListener('click', () => {
+      sidebar.classList.toggle('collapsed');
+      localStorage.setItem('sidebar_collapsed', sidebar.classList.contains('collapsed'));
+      updateIcon();
+    });
+  });
+</script>
+
+<script src="/static/js/i18n.js?v=20260314"></script>
+{% block extra_scripts %}{% endblock %}
+</body>
+</html>

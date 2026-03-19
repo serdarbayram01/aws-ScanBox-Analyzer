@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+
+{% block title %}Enjoy — AWS ScanBox{% endblock %}
+{% block page_title %}<span data-i18n="enjoy_title">Enjoy</span>{% endblock %}
+{% block page_subtitle %}<span data-i18n="enjoy_subtitle">Mini Games & Fun</span>{% endblock %}
+
+{% block sidebar_sections %}
+<div class="nav-section-label" data-i18n="nav_section_main">Main</div>
+<a class="nav-item active" data-section="dashboard" href="/enjoy">
+  <span class="nav-icon">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+      <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+    </svg>
+  </span>
+  <span class="nav-label" data-i18n="nav_dashboard">Dashboard</span>
+</a>
+{% endblock %}
+
+{% block content %}
+<link rel="stylesheet" href="/static/enjoy/css/enjoy.css">
+
+<div class="page-body" style="padding:20px;overflow-y:auto;height:calc(100vh - 64px)">
+
+  <div class="enjoy-grid">
+
+    <!-- AwsOps Checkers -->
+    <div class="enjoy-card" id="game-checkers">
+      <div class="enjoy-card-header">
+        <div class="enjoy-card-title">
+          <span class="enjoy-card-icon" style="color:var(--accent)">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/></svg>
+          </span>
+          <span data-i18n="enjoy_game_checkers">AwsOps Checkers</span>
+        </div>
+        <div class="enjoy-card-controls" id="checkers-controls"></div>
+      </div>
+      <div class="enjoy-card-body" id="checkers-body"></div>
+      <div class="enjoy-card-footer" id="checkers-footer"></div>
+    </div>
+
+    <!-- AwsOps Chess -->
+    <div class="enjoy-card" id="game-chess">
+      <div class="enjoy-card-header">
+        <div class="enjoy-card-title">
+          <span class="enjoy-card-icon" style="color:var(--yellow)">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M2 4l3 12h14l3-12"/><path d="M8 20h8"/><path d="M12 4V2"/><circle cx="12" cy="4" r="1"/><circle cx="5" cy="4" r="1"/><circle cx="19" cy="4" r="1"/></svg>
+          </span>
+          <span data-i18n="enjoy_game_chess">AwsOps Chess</span>
+        </div>
+        <div class="enjoy-card-controls" id="chess-controls"></div>
+      </div>
+      <div class="enjoy-card-body" id="chess-body"></div>
+      <div class="enjoy-card-footer" id="chess-footer"></div>
+    </div>
+
+    <!-- AwsOps Man -->
+    <div class="enjoy-card" id="game-man">
+      <div class="enjoy-card-header">
+        <div class="enjoy-card-title">
+          <span class="enjoy-card-icon" style="color:var(--yellow)">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 2 A10 10 0 0 1 22 12 L12 12 Z"/></svg>
+          </span>
+          <span data-i18n="enjoy_game_man">AwsOps Man</span>
+        </div>
+        <div class="enjoy-card-controls" id="man-controls"></div>
+      </div>
+      <div class="enjoy-card-body" id="man-body"></div>
+      <div class="enjoy-card-footer" id="man-footer"></div>
+    </div>
+
+    <!-- AwsOps Snake -->
+    <div class="enjoy-card" id="game-snake">
+      <div class="enjoy-card-header">
+        <div class="enjoy-card-title">
+          <span class="enjoy-card-icon" style="color:var(--green)">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M2 6c.6.5 1.2 1 2.5 1C7 7 7 5 9.5 5c2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/><path d="M2 12c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/><path d="M2 18c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/></svg>
+          </span>
+          <span data-i18n="enjoy_game_snake">AwsOps Snake</span>
+        </div>
+        <div class="enjoy-card-controls" id="snake-controls"></div>
+      </div>
+      <div class="enjoy-card-body" id="snake-body"></div>
+      <div class="enjoy-card-footer" id="snake-footer"></div>
+    </div>
+
+    <!-- AwsOps Match -->
+    <div class="enjoy-card" id="game-match">
+      <div class="enjoy-card-header">
+        <div class="enjoy-card-title">
+          <span class="enjoy-card-icon" style="color:var(--blue)">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="2" y="2" width="8" height="8" rx="1"/><rect x="14" y="2" width="8" height="8" rx="1"/><rect x="2" y="14" width="8" height="8" rx="1"/><rect x="14" y="14" width="8" height="8" rx="1"/></svg>
+          </span>
+          <span data-i18n="enjoy_game_match">AwsOps Match</span>
+        </div>
+        <div class="enjoy-card-controls" id="match-controls"></div>
+      </div>
+      <div class="enjoy-card-body" id="match-body"></div>
+      <div class="enjoy-card-footer" id="match-footer"></div>
+    </div>
+
+    <!-- AwsOps 2048 -->
+    <div class="enjoy-card" id="game-2048">
+      <div class="enjoy-card-header">
+        <div class="enjoy-card-title">
+          <span class="enjoy-card-icon" style="color:var(--accent)">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg>
+          </span>
+          <span data-i18n="enjoy_game_2048">AwsOps 2048</span>
+        </div>
+        <div class="enjoy-card-controls" id="g2048-controls"></div>
+      </div>
+      <div class="enjoy-card-body" id="g2048-body"></div>
+      <div class="enjoy-card-footer" id="g2048-footer"></div>
+    </div>
+
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="/static/enjoy/js/enjoy.js"></script>
+{% endblock %}

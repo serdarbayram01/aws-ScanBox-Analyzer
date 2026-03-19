@@ -1,0 +1,57 @@
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+*.egg
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.settings/
+
+# OS files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Logs
+logs/*
+!logs/.gitkeep
+
+# Generated reports (user-specific data)
+reports/*
+!reports/.gitkeep
+
+# Cached scan results (user-specific data)
+modules/secops/data/scan_results/*
+modules/mapinventory/data/scan_results/*
+modules/topology/data/scan_results/*
+modules/advice/data/scan_results/*
+!modules/*/data/scan_results/.gitkeep
+
+# Reference / development materials (not part of the app)
+Referance/
+
+# Claude Code
+.claude/
+CLAUDE.md
+
+# Sensitive / environment
+.env
+.env.*
+*.pem
+*.key

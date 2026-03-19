@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}{{ code }} — AWS ScanBox{% endblock %}
+{% block content %}
+<div style="display:flex;align-items:center;justify-content:center;min-height:60vh;flex-direction:column;gap:16px;">
+  <h1 style="font-size:72px;color:var(--accent);margin:0;">{{ code }}</h1>
+  <p style="font-size:18px;color:var(--text-secondary);">{{ message }}</p>
+  <a href="/finops" style="color:var(--accent);text-decoration:none;margin-top:16px;">← Dashboard</a>
+</div>
+{% endblock %}
