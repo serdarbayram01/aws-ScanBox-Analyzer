@@ -471,7 +471,7 @@ SCANBOX_DEMO=1 python app.py
 
 See **[CHANGELOG.md](CHANGELOG.md)** for a detailed version history and **[VERSIONING.md](VERSIONING.md)** for the versioning strategy.
 
-### Latest: v1.0.0 (March 2026)
+### Latest: v1.1.0 (March 2026)
 
 - 7 core modules: FinOps, SecOps, MapInventory, Topology, Advice, Health, About
 - 24 SecOps security check modules across 4 compliance frameworks

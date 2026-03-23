@@ -14,6 +14,35 @@ For versioning rules and release process, see [VERSIONING.md](VERSIONING.md).
 
 ---
 
+## [1.1.0] - 2026-03-23
+
+### Added
+
+#### Topology Module — 3-Tier Architecture Diagram
+- AWS 3-Tier Architecture layout: Web Tier (public subnets), Application Tier (private, non-DB), Database Tier (private, RDS)
+- Region container with dashed teal border wrapping all VPCs per region
+- Tier chevron labels on the left side (Web/App/DB) with color-coded indicators
+- Route Table banners between tiers showing CIDR route summaries (public/private)
+- Auxiliary AWS Services panel on the right side (IAM, GuardDuty, CloudWatch, CloudTrail, Backup, S3)
+- Automatic 3-tier resource classification based on subnet publicity and resource type
+- New container types: cloud, region, tier_web, tier_app, tier_db, aux_panel, rt_banner
+- New AWS icons: IAM, IAM Identity Center, GuardDuty, CloudWatch, CloudTrail, Backup, AutoScaling
+- Minimap click-and-drag navigation for panning the diagram viewport
+
+#### Launcher Scripts — Auto-Install Prerequisites
+- 4-phase prerequisite system: check all → display status table → install missing → start server
+- `run.bat` (Windows): Auto-installs Python via winget or PowerShell download, pip via ensurepip/get-pip.py, venv, dependencies, optional AWS CLI
+- `run.sh` (macOS/Linux): OS detection (macOS/Debian/RHEL/Arch/Alpine/SUSE), auto-installs Python via brew/apt/dnf/pacman/apk, pip, venv, dependencies, optional AWS CLI
+- Prerequisites status display with [OK]/[--] indicators before any installation
+- All installations prompt user for confirmation (Y/N) before proceeding
+- Skips directly to server start when all prerequisites are already met
+
+### Changed
+- Topology container labels now use type-specific positioning: top-center for subnets/AZs, full-center for banners, top-left for VPCs/regions
+- Dark/light theme colors extended with 10 new variables for 3-tier architecture containers
+
+---
+
 ## [1.0.0] - 2026-03-19
 
 First public release with 7 core modules.

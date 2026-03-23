@@ -619,6 +619,13 @@
     hosted_zone:     `${_ICON_CDN}/architecture-service/AmazonRoute53.svg`,
     organization:    `${_ICON_CDN}/architecture-service/AWSOrganizations.svg`,
     org_account:     `${_ICON_CDN}/architecture-service/AWSOrganizations.svg`,
+    iam:              `${_ICON_CDN}/architecture-service/AWSIdentityandAccessManagement.svg`,
+    iam_identity_center: `${_ICON_CDN}/architecture-service/AWSIAMIdentityCenter.svg`,
+    guardduty:        `${_ICON_CDN}/architecture-service/AmazonGuardDuty.svg`,
+    cloudwatch:       `${_ICON_CDN}/architecture-service/AmazonCloudWatch.svg`,
+    cloudtrail:       `${_ICON_CDN}/architecture-service/AWSCloudTrail.svg`,
+    backup:           `${_ICON_CDN}/architecture-service/AWSBackup.svg`,
+    autoscaling:      `${_ICON_CDN}/architecture-service/AmazonEC2AutoScaling.svg`,
   };
 
   // ── Smart label truncation ────────────────────────────────
@@ -700,6 +707,18 @@
       azBorder:  isDark ? '#2d4a6f' : '#94a3b8',
       iconBg:    isDark ? '#1a2332' : '#ffffff',
       iconBorder: isDark ? '#334155' : '#e2e8f0',
+      // 3-tier architecture containers
+      cloudBg:    isDark ? '#0a0e14' : '#fafafa',
+      cloudBorder: '#9e9e9e',
+      regionBg:   isDark ? '#0a1a1e' : '#f0fffe',
+      regionBorder: '#0097a7',
+      auxPanelBg: isDark ? '#0d1117' : '#f8f9fa',
+      auxPanelBorder: isDark ? '#334155' : '#cbd5e1',
+      // Tier backgrounds
+      webTierBg:  isDark ? '#0a2212' : '#f0fdf4',
+      appTierBg:  isDark ? '#1a1408' : '#fff8f0',
+      dbTierBg:   isDark ? '#0a1628' : '#eff6ff',
+      rtBannerBg: isDark ? '#1a1028' : '#f3e8ff',
     };
   }
 
@@ -1030,6 +1049,20 @@
       fill = tc.privSubBg; stroke = '#3b82f6'; strokeWidth = 1.5; labelColor = tc.text; headerFill = '#3b82f618';
     } else if (containerType === 'remote_vpc') {
       fill = tc.vpcBg; stroke = '#ff990088'; strokeWidth = 2; labelColor = '#ff990088'; headerFill = '#ff990011';
+    } else if (containerType === 'cloud') {
+      fill = tc.cloudBg; stroke = tc.cloudBorder; strokeWidth = 1; labelColor = '#9e9e9e'; headerFill = 'transparent';
+    } else if (containerType === 'region') {
+      fill = tc.regionBg; stroke = tc.regionBorder; strokeWidth = 1.5; labelColor = '#0097a7'; headerFill = 'transparent';
+    } else if (containerType === 'tier_web') {
+      fill = tc.webTierBg; stroke = '#2e7d32'; strokeWidth = 1.5; labelColor = '#2e7d32'; headerFill = '#2e7d3215';
+    } else if (containerType === 'tier_app') {
+      fill = tc.appTierBg; stroke = '#e65100'; strokeWidth = 1.5; labelColor = '#e65100'; headerFill = '#e6510015';
+    } else if (containerType === 'tier_db') {
+      fill = tc.dbTierBg; stroke = '#1565c0'; strokeWidth = 1.5; labelColor = '#1565c0'; headerFill = '#1565c015';
+    } else if (containerType === 'aux_panel') {
+      fill = tc.auxPanelBg; stroke = tc.auxPanelBorder; strokeWidth = 1; labelColor = tc.textMuted; headerFill = 'transparent';
+    } else if (containerType === 'rt_banner') {
+      fill = tc.rtBannerBg; stroke = '#8e24aa'; strokeWidth = 1; labelColor = '#8e24aa'; headerFill = 'transparent';
     } else {
       fill = tc.bgCard; stroke = tc.border; strokeWidth = 1; labelColor = tc.text; headerFill = 'transparent';
     }
@@ -1038,6 +1071,19 @@
     const h = opts.height || 100;
 
     const rr = containerType === 'az' ? 4 : 8;
+
+    // Label positioning per container type
+    const topCenter = ['subnet_public', 'subnet_private', 'az'].includes(containerType);
+    const fullCenter = ['rt_banner', 'remote_vpc', 'aux_panel'].includes(containerType);
+    let labelAttrs;
+    if (fullCenter) {
+      labelAttrs = { text: label, fill: labelColor, fontSize: 11, fontWeight: 700, fontFamily: "Inter, system-ui, sans-serif", textAnchor: 'middle', textVerticalAnchor: 'middle', refX: '50%', refY: '50%' };
+    } else if (topCenter) {
+      labelAttrs = { text: label, fill: labelColor, fontSize: 11, fontWeight: 700, fontFamily: "Inter, system-ui, sans-serif", textAnchor: 'middle', textVerticalAnchor: 'top', refX: '50%', refY: 8 };
+    } else {
+      labelAttrs = { text: label, fill: labelColor, fontSize: 11, fontWeight: 700, fontFamily: "Inter, system-ui, sans-serif", textAnchor: 'start', textVerticalAnchor: 'top', refX: 10, refY: 8 };
+    }
+
     const el = new shapes.standard.Rectangle({
       id,
       position: { x: opts.x || 0, y: opts.y || 0 },
@@ -1045,15 +1091,9 @@
       attrs: {
         body: {
           fill, stroke, strokeWidth, rx: rr, ry: rr,
-          strokeDasharray: containerType === 'az' ? '6,3' : containerType === 'remote_vpc' ? '8,4' : 'none',
+          strokeDasharray: (containerType === 'az' || containerType === 'tier_web' || containerType === 'tier_app' || containerType === 'tier_db') ? '6,3' : (containerType === 'remote_vpc' || containerType === 'region') ? '8,4' : containerType === 'cloud' ? '12,6' : 'none',
         },
-        label: {
-          text: label, fill: labelColor,
-          fontSize: 11, fontWeight: 700,
-          fontFamily: "Inter, system-ui, sans-serif",
-          textAnchor: 'start', textVerticalAnchor: 'top',
-          refX: 10, refY: 8,
-        },
+        label: labelAttrs,
       },
     });
     if (opts.resourceData) el.prop('resourceData', opts.resourceData);
@@ -1150,10 +1190,12 @@
     const subnets = resources.filter(r => r.type === 'subnet');
     const igws = resources.filter(r => r.type === 'igw');
     const nats = resources.filter(r => r.type === 'nat');
+    const routeTables = resources.filter(r => r.type === 'route_table');
     const others = resources.filter(r =>
       !['vpc', 'subnet', 'igw', 'nat', 'peering', 'organization', 'org_account'].includes(r.type)
     );
 
+    // ── Build VPC hierarchy ──
     const vpcMap = {};
     vpcs.forEach(v => { vpcMap[v.id] = { vpc: v, azs: {} }; });
     subnets.forEach(s => {
@@ -1164,11 +1206,28 @@
       else vpcMap[s.vpc_id].azs[az].private.push(s);
     });
 
+    // ── Classify resources into 3 tiers ──
+    const subnetMap = {};
+    subnets.forEach(s => { subnetMap[s.id] = s; });
+
+    function classifyTier(r) {
+      if (r.type === 'rds') return 'db';
+      if (r.type === 'elb' && r.scheme === 'internet-facing') return 'web';
+      if (r.type === 'elb') return 'app';
+      if (r.type === 'api_gateway') return 'web';
+      if (r.type === 'cloudfront') return 'web';
+      if (r.type === 'nat') return 'web';
+      // Subnet-based classification
+      const sub = subnetMap[r.subnet_id];
+      if (sub && sub.is_public) return 'web';
+      if (r.type === 'ec2' || r.type === 'lambda' || r.type === 'ecs_service' || r.type === 'eks') return 'app';
+      return 'app'; // default
+    }
+
     // Only place non-clutter resources inside subnets/VPCs
     const subnetResources = {};
     const vpcResources = {};
     others.forEach(r => {
-      // Skip clutter types from being placed as individual nodes in VPC
       if (VPC_LEVEL_CLUTTER_TYPES.has(r.type)) return;
       if (r.subnet_id && subnets.find(s => s.id === r.subnet_id)) {
         if (!subnetResources[r.subnet_id]) subnetResources[r.subnet_id] = [];
@@ -1182,236 +1241,417 @@
     const nodeIds = new Set();
     const SUB_W = 180, SUB_H = 60, RES_W = 56, RES_H = 68, PAD = 30;
     const AZ_GAP = 24, RES_GAP = 10, SUB_PAD = 14;
+    const TIER_LABEL_W = 32;
+    const RT_BANNER_H = 36;
+
+    // ── Group VPCs by region ──
+    const regionMap = {};
+    vpcs.forEach(v => {
+      const reg = v.region || 'unknown';
+      if (!regionMap[reg]) regionMap[reg] = [];
+      regionMap[reg].push(v);
+    });
 
     let globalX = 40;
+    const regionContainers = []; // track for cloud container sizing
 
-    vpcs.forEach((vpc) => {
-      const vpcData = vpcMap[vpc.id];
-      if (!vpcData) return;
-      const azNames = Object.keys(vpcData.azs).sort();
+    Object.keys(regionMap).sort().forEach((regionName) => {
+      const regionVpcs = regionMap[regionName];
+      const regionStartX = globalX;
+      let regionMaxH = 0;
 
-      let vpcHasPublic = false, vpcHasPrivate = false;
-      azNames.forEach(az => {
-        const d = vpcData.azs[az];
-        if (d.public.length) vpcHasPublic = true;
-        if (d.private.length) vpcHasPrivate = true;
-      });
+      // ── Region label (dashed teal) ──
+      const regionId = `_region_${regionName}`;
+      // We'll size the region container AFTER laying out its VPCs
 
-      // Compute max resources in any subnet (cap at 4 cols for readability)
-      let maxResInSub = 0;
-      subnets.filter(s => s.vpc_id === vpc.id).forEach(s => {
-        const cnt = (subnetResources[s.id] || []).length;
-        maxResInSub = Math.max(maxResInSub, cnt);
-      });
+      let vpcStartX = globalX + PAD + TIER_LABEL_W + 10;
 
-      const resColsPerSub = Math.max(1, Math.min(maxResInSub, 4));
-      const subW = Math.max(SUB_W, resColsPerSub * (RES_W + RES_GAP) + SUB_PAD * 2);
-      const azColW = subW + SUB_PAD * 2;
+      regionVpcs.forEach((vpc) => {
+        const vpcData = vpcMap[vpc.id];
+        if (!vpcData) return;
+        const azNames = Object.keys(vpcData.azs).sort();
 
-      // Only non-clutter VPC-level resources
-      const vpcExtraRes = (vpcResources[vpc.id] || []).filter(r => !VPC_LEVEL_CLUTTER_TYPES.has(r.type));
-
-      // Helper: resource rows needed
-      const resRows = (cnt) => cnt <= 0 ? 0 : Math.ceil(cnt / resColsPerSub);
-
-      // ── Calculate tier heights ──
-      function calcTierH(tier) {
-        let maxSubH = 0;
+        // Determine which tiers have content
+        let hasWebTier = false, hasAppTier = false, hasDbTier = false;
         azNames.forEach(az => {
-          const azSubs = vpcData.azs[az][tier];
-          let colH = 0;
-          azSubs.forEach(s => {
-            const sRes = (subnetResources[s.id] || []).length;
-            const rowCount = resRows(sRes);
-            const contentH = rowCount > 0 ? rowCount * (RES_H + RES_GAP) : 0;
-            colH += SUB_H + contentH + 16;
-          });
-          maxSubH = Math.max(maxSubH, colH);
-        });
-        return maxSubH > 0 ? maxSubH + PAD + 36 : 0;
-      }
-
-      const pubTierH = vpcHasPublic ? calcTierH('public') : 0;
-      const privTierH = vpcHasPrivate ? calcTierH('private') : 0;
-      const natRowH = nats.some(n => n.vpc_id === vpc.id) && vpcHasPublic && vpcHasPrivate ? 80 : 0;
-      const vpcResColsPerRow = 8;
-      const vpcResRowH = vpcExtraRes.length > 0 ? Math.ceil(vpcExtraRes.length / vpcResColsPerRow) * (RES_H + 12) + 30 : 0;
-
-      // Count AZs that actually have subnets per tier
-      const pubAzCount = azNames.filter(az => vpcData.azs[az].public.length > 0).length;
-      const privAzCount = azNames.filter(az => vpcData.azs[az].private.length > 0).length;
-      const maxAzCount = Math.max(pubAzCount, privAzCount, 1);
-
-      const totalAzW = maxAzCount * azColW + (maxAzCount - 1) * AZ_GAP;
-      const vpcW = Math.max(totalAzW + PAD * 2 + 20, 340);
-      const vpcH = PAD + 32 + pubTierH + natRowH + privTierH + vpcResRowH + PAD;
-
-      // ── IGW above VPC ──
-      const igwsForVpc = igws.filter(g => g.vpc_id === vpc.id);
-      igwsForVpc.forEach((igw, i) => {
-        const igwId = `igw_${igw.id}`;
-        addResource(igwId, 'igw', 'Internet GW', {
-          x: globalX + vpcW / 2 - 28 + (i - (igwsForVpc.length - 1) / 2) * 80,
-          y: 20,
-          resourceData: { ...igw, nodeType: 'igw' },
-        });
-        nodeIds.add(igwId);
-      });
-
-      const vpcY = igwsForVpc.length > 0 ? 110 : 40;
-
-      // ── VPC container ──
-      addContainer(vpc.id, shortLabel(vpc), {
-        containerType: 'vpc', x: globalX, y: vpcY,
-        width: vpcW, height: vpcH,
-        resourceData: { ...vpc, nodeType: 'vpc' },
-      });
-      nodeIds.add(vpc.id);
-
-      // Link IGW → VPC
-      igwsForVpc.forEach((igw) => {
-        addLink(`igw_${igw.id}`, vpc.id, { color: '#8c4fff', strokeWidth: 2 });
-      });
-
-      let tierY = vpcY + PAD + 32;
-
-      // ── Helper: place subnets in a tier ──
-      function placeTier(tierType, tierId, tierLabel, containerType, subContainerType, tierH) {
-        addContainer(tierId, tierLabel, {
-          containerType, x: globalX + PAD, y: tierY,
-          width: vpcW - PAD * 2, height: tierH,
-          parentId: vpc.id,
-        });
-
-        // Center AZ columns within the tier
-        const activAzs = azNames.filter(az => vpcData.azs[az][tierType].length > 0);
-        const usedWidth = activAzs.length * azColW + (activAzs.length - 1) * AZ_GAP;
-        let azX = globalX + PAD + Math.max(10, ((vpcW - PAD * 2) - usedWidth) / 2);
-
-        activAzs.forEach((az) => {
-          const azData = vpcData.azs[az];
-          const azSubs = azData[tierType];
-          if (!azSubs.length) return;
-
-          const azId = `${vpc.id}_${az}_${tierType}`;
-          const azH = tierH - 40;
-          addContainer(azId, az.replace(/.*-/, ''), {
-            containerType: 'az', x: azX, y: tierY + 30,
-            width: azColW, height: azH,
-            parentId: tierId,
-          });
-
-          let subY = tierY + 56;
-          azSubs.forEach((s) => {
-            const sRes = subnetResources[s.id] || [];
-            const countBadge = sRes.length > 0 ? ` [${sRes.length}]` : '';
-            const sLabel = shortLabel(s) + countBadge;
-            const rowCount = resRows(sRes.length);
-            const contentH = rowCount > 0 ? rowCount * (RES_H + RES_GAP) : 0;
-            const sH = SUB_H + contentH;
-
-            // Center subnet horizontally within AZ
-            const subX = azX + (azColW - subW) / 2;
-            addContainer(s.id, sLabel.split('\n')[0], {
-              containerType: subContainerType, x: subX, y: subY,
-              width: subW, height: sH,
-              parentId: azId,
-              resourceData: { ...s, nodeType: 'subnet' },
+          const d = vpcData.azs[az];
+          if (d.public.length) hasWebTier = true;
+          if (d.private.length) {
+            // Check if any private subnet has DB resources
+            d.private.forEach(s => {
+              const sRes = subnetResources[s.id] || [];
+              if (sRes.some(r => r.type === 'rds')) hasDbTier = true;
+              else hasAppTier = true;
             });
-            nodeIds.add(s.id);
-
-            if (s.cidr) {
-              const cidrEl = _graph.getCell(s.id);
-              if (cidrEl) cidrEl.attr('label/text', `${sLabel.split('\n')[0]}\n${s.cidr}`);
-            }
-
-            // Place resources inside subnet, centered
-            if (sRes.length > 0) {
-              const resStartX = subX + (subW - Math.min(sRes.length, resColsPerSub) * (RES_W + RES_GAP) + RES_GAP) / 2;
-              sRes.forEach((r, ri) => {
-                const col = ri % resColsPerSub;
-                const row = Math.floor(ri / resColsPerSub);
-                const rx = resStartX + col * (RES_W + RES_GAP);
-                const ry = subY + SUB_H - 24 + row * (RES_H + RES_GAP);
-                addResource(r.id, r.type, typeTag(r.type), {
-                  x: rx, y: ry, parentId: s.id,
-                  resourceData: { ...r, nodeType: r.type },
-                });
-                nodeIds.add(r.id);
-              });
-            }
-
-            subY += sH + 12;
-          });
-
-          azX += azColW + AZ_GAP;
+            if (!hasAppTier && !hasDbTier) hasAppTier = true;
+          }
         });
 
-        tierY += tierH;
-      }
+        // If no subnets at all, create a minimal VPC box
+        if (!hasWebTier && !hasAppTier && !hasDbTier) {
+          hasAppTier = true; // fallback
+        }
 
-      // ── Public Tier ──
-      if (vpcHasPublic && pubTierH > 0) {
-        placeTier('public', `${vpc.id}_pub_tier`, 'Public Subnets',
-          'tier_public', 'subnet_public', pubTierH);
-      }
+        // Compute max resources in any subnet
+        let maxResInSub = 0;
+        subnets.filter(s => s.vpc_id === vpc.id).forEach(s => {
+          const cnt = (subnetResources[s.id] || []).length;
+          maxResInSub = Math.max(maxResInSub, cnt);
+        });
 
-      // ── NAT Gateways (between tiers) ──
-      if (vpcHasPublic && vpcHasPrivate && natRowH > 0) {
-        const activAzs = azNames.filter(az => vpcData.azs[az].public.length > 0 || vpcData.azs[az].private.length > 0);
-        const usedWidth = activAzs.length * azColW + (activAzs.length - 1) * AZ_GAP;
-        let azX = globalX + PAD + Math.max(10, ((vpcW - PAD * 2) - usedWidth) / 2);
+        const resColsPerSub = Math.max(1, Math.min(maxResInSub, 4));
+        const subW = Math.max(SUB_W, resColsPerSub * (RES_W + RES_GAP) + SUB_PAD * 2);
+        const azColW = subW + SUB_PAD * 2;
 
-        activAzs.forEach((az) => {
-          const azCx = azX + azColW / 2;
-          const azNats = nats.filter(n => {
-            const azData = vpcData.azs[az];
-            if (n.subnet_id) return azData.public.some(s => s.id === n.subnet_id) || azData.private.some(s => s.id === n.subnet_id);
-            return n.az === az && n.vpc_id === vpc.id;
-          });
-          azNats.forEach((nat, ni) => {
-            const natId = `nat_${nat.id}`;
-            addResource(natId, 'nat', 'NAT GW', {
-              x: azCx - 28 + ni * 70, y: tierY + 8,
-              parentId: vpc.id,
-              resourceData: { ...nat, nodeType: 'nat' },
+        const vpcExtraRes = (vpcResources[vpc.id] || []).filter(r => !VPC_LEVEL_CLUTTER_TYPES.has(r.type));
+
+        const resRows = (cnt) => cnt <= 0 ? 0 : Math.ceil(cnt / resColsPerSub);
+
+        // ── Calculate tier heights ──
+        function calcTierH(tierType) {
+          let maxSubH = 0;
+          azNames.forEach(az => {
+            const azSubs = vpcData.azs[az][tierType];
+            let colH = 0;
+            azSubs.forEach(s => {
+              const sRes = (subnetResources[s.id] || []).length;
+              const rowCount = resRows(sRes);
+              const contentH = rowCount > 0 ? rowCount * (RES_H + RES_GAP) : 0;
+              colH += SUB_H + contentH + 16;
             });
-            nodeIds.add(natId);
-            if (nat.subnet_id && nodeIds.has(nat.subnet_id)) {
-              addLink(natId, nat.subnet_id, { color: '#22c55e' });
-            }
+            maxSubH = Math.max(maxSubH, colH);
           });
-          azX += azColW + AZ_GAP;
+          return maxSubH > 0 ? maxSubH + PAD + 36 : 0;
+        }
+
+        // For 3-tier: split private subnets into app/db
+        function calcTier3H(checkFn) {
+          let maxSubH = 0;
+          azNames.forEach(az => {
+            const azSubs = vpcData.azs[az].private.filter(checkFn);
+            let colH = 0;
+            azSubs.forEach(s => {
+              const sRes = (subnetResources[s.id] || []).length;
+              const rowCount = resRows(sRes);
+              const contentH = rowCount > 0 ? rowCount * (RES_H + RES_GAP) : 0;
+              colH += SUB_H + contentH + 16;
+            });
+            maxSubH = Math.max(maxSubH, colH);
+          });
+          return maxSubH > 0 ? maxSubH + PAD + 36 : 0;
+        }
+
+        const webTierH = hasWebTier ? calcTierH('public') : 0;
+        const appTierH = hasAppTier ? calcTier3H(s => {
+          const sRes = subnetResources[s.id] || [];
+          return !sRes.some(r => r.type === 'rds');
+        }) : 0;
+        const dbTierH = hasDbTier ? calcTier3H(s => {
+          const sRes = subnetResources[s.id] || [];
+          return sRes.some(r => r.type === 'rds');
+        }) : 0;
+
+        const natRowH = nats.some(n => n.vpc_id === vpc.id) && hasWebTier && (hasAppTier || hasDbTier) ? 80 : 0;
+
+        // Route table banners between tiers
+        const rtBannerCount = (hasWebTier && (hasAppTier || hasDbTier) ? 1 : 0) + (hasAppTier && hasDbTier ? 1 : 0);
+        const rtBannersH = rtBannerCount * (RT_BANNER_H + 8);
+
+        const vpcResColsPerRow = 8;
+        const vpcResRowH = vpcExtraRes.length > 0 ? Math.ceil(vpcExtraRes.length / vpcResColsPerRow) * (RES_H + 12) + 30 : 0;
+
+        const pubAzCount = azNames.filter(az => vpcData.azs[az].public.length > 0).length;
+        const privAzCount = azNames.filter(az => vpcData.azs[az].private.length > 0).length;
+        const maxAzCount = Math.max(pubAzCount, privAzCount, 1);
+
+        const totalAzW = maxAzCount * azColW + (maxAzCount - 1) * AZ_GAP;
+        const vpcW = Math.max(totalAzW + PAD * 2 + 20, 340);
+        const vpcH = PAD + 32 + webTierH + natRowH + rtBannersH + appTierH + dbTierH + vpcResRowH + PAD;
+
+        // ── IGW above VPC ──
+        const igwsForVpc = igws.filter(g => g.vpc_id === vpc.id);
+        const igwY = 60;
+        igwsForVpc.forEach((igw, i) => {
+          const igwId = `igw_${igw.id}`;
+          addResource(igwId, 'igw', 'Internet GW', {
+            x: vpcStartX + vpcW / 2 - 28 + (i - (igwsForVpc.length - 1) / 2) * 80,
+            y: igwY,
+            resourceData: { ...igw, nodeType: 'igw' },
+          });
+          nodeIds.add(igwId);
         });
-        tierY += natRowH;
-      }
 
-      // ── Private Tier ──
-      if (vpcHasPrivate && privTierH > 0) {
-        placeTier('private', `${vpc.id}_priv_tier`, 'Private Subnets',
-          'tier_private', 'subnet_private', privTierH);
-      }
+        const vpcY = igwsForVpc.length > 0 ? igwY + 90 : igwY + 20;
 
-      // ── VPC-level resources (only non-clutter types) ──
-      if (vpcExtraRes.length > 0) {
-        const resStartY = tierY + 10;
-        const colW = Math.max((vpcW - PAD * 2) / vpcResColsPerRow, 70);
-        let placed = 0;
-        vpcExtraRes.forEach((r) => {
-          if (nodeIds.has(r.id)) return;
-          const col = placed % vpcResColsPerRow;
-          const row = Math.floor(placed / vpcResColsPerRow);
-          addResource(r.id, r.type, typeTag(r.type), {
-            x: globalX + PAD + col * colW, y: resStartY + row * (RES_H + 12),
+        // ── VPC container ──
+        addContainer(vpc.id, shortLabel(vpc), {
+          containerType: 'vpc', x: vpcStartX, y: vpcY,
+          width: vpcW, height: vpcH,
+          resourceData: { ...vpc, nodeType: 'vpc' },
+        });
+        nodeIds.add(vpc.id);
+
+        // Link IGW → VPC
+        igwsForVpc.forEach((igw) => {
+          addLink(`igw_${igw.id}`, vpc.id, { color: '#8c4fff', strokeWidth: 2 });
+        });
+
+        let tierY = vpcY + PAD + 32;
+
+        // ── Helper: place subnets in a tier ──
+        function placeTier(tierType, tierId, tierLabel, containerType, subContainerType, tierH, subFilterFn) {
+          addContainer(tierId, tierLabel, {
+            containerType, x: vpcStartX + PAD, y: tierY,
+            width: vpcW - PAD * 2, height: tierH,
             parentId: vpc.id,
-            resourceData: { ...r, nodeType: r.type },
           });
-          nodeIds.add(r.id);
-          placed++;
-        });
-      }
 
-      globalX += vpcW + 60;
+          const activAzs = azNames.filter(az => {
+            const subs = tierType === 'public' ? vpcData.azs[az].public : vpcData.azs[az].private.filter(subFilterFn || (() => true));
+            return subs.length > 0;
+          });
+          const usedWidth = activAzs.length * azColW + (activAzs.length - 1) * AZ_GAP;
+          let azX = vpcStartX + PAD + Math.max(10, ((vpcW - PAD * 2) - usedWidth) / 2);
+
+          activAzs.forEach((az) => {
+            const azSubs = tierType === 'public' ? vpcData.azs[az].public : vpcData.azs[az].private.filter(subFilterFn || (() => true));
+            if (!azSubs.length) return;
+
+            const azId = `${vpc.id}_${az}_${tierId}`;
+            const azLabel = az.replace(/.*-/, '');
+            const azH = tierH - 40;
+            addContainer(azId, `Availability Zone (${azLabel})`, {
+              containerType: 'az', x: azX, y: tierY + 30,
+              width: azColW, height: azH,
+              parentId: tierId,
+            });
+
+            let subY = tierY + 56;
+            azSubs.forEach((s) => {
+              const sRes = subnetResources[s.id] || [];
+              const countBadge = sRes.length > 0 ? ` [${sRes.length}]` : '';
+              const sLabel = shortLabel(s) + countBadge;
+              const rowCount = resRows(sRes.length);
+              const contentH = rowCount > 0 ? rowCount * (RES_H + RES_GAP) : 0;
+              const sH = SUB_H + contentH;
+
+              const subX = azX + (azColW - subW) / 2;
+              addContainer(s.id, sLabel.split('\n')[0], {
+                containerType: subContainerType, x: subX, y: subY,
+                width: subW, height: sH,
+                parentId: azId,
+                resourceData: { ...s, nodeType: 'subnet' },
+              });
+              nodeIds.add(s.id);
+
+              if (s.cidr) {
+                const cidrEl = _graph.getCell(s.id);
+                if (cidrEl) cidrEl.attr('label/text', `${sLabel.split('\n')[0]}\n${s.cidr}`);
+              }
+
+              if (sRes.length > 0) {
+                const resStartX = subX + (subW - Math.min(sRes.length, resColsPerSub) * (RES_W + RES_GAP) + RES_GAP) / 2;
+                sRes.forEach((r, ri) => {
+                  const col = ri % resColsPerSub;
+                  const row = Math.floor(ri / resColsPerSub);
+                  const rx = resStartX + col * (RES_W + RES_GAP);
+                  const ry = subY + SUB_H - 24 + row * (RES_H + RES_GAP);
+                  addResource(r.id, r.type, typeTag(r.type), {
+                    x: rx, y: ry, parentId: s.id,
+                    resourceData: { ...r, nodeType: r.type },
+                  });
+                  nodeIds.add(r.id);
+                });
+              }
+
+              subY += sH + 12;
+            });
+
+            azX += azColW + AZ_GAP;
+          });
+
+          tierY += tierH;
+        }
+
+        // ── Helper: Route Table Banner between tiers ──
+        function placeRtBanner(bannerId, isPublic) {
+          const rts = routeTables.filter(rt => rt.vpc_id === vpc.id && (isPublic ? rt.has_igw_route : !rt.has_igw_route));
+          const rt = rts[0];
+          let label = isPublic ? 'Public Route Table' : 'Private Route Table';
+          if (rt && rt.routes) {
+            const routeTexts = rt.routes.slice(0, 3).map(r => `${r.destination} → ${(r.target || '').substring(0, 16)}`);
+            label += '  |  ' + routeTexts.join('  |  ');
+          }
+          addContainer(bannerId, label, {
+            containerType: 'rt_banner', x: vpcStartX + PAD + 10, y: tierY + 2,
+            width: vpcW - PAD * 2 - 20, height: RT_BANNER_H,
+            parentId: vpc.id,
+          });
+          tierY += RT_BANNER_H + 8;
+        }
+
+        // ── Tier Chevron Labels (left side) ──
+        const tierLabelX = regionStartX + 10;
+        const tierLabelData = [];
+
+        // ── Web Tier (public subnets) ──
+        if (hasWebTier && webTierH > 0) {
+          const tierStartY = tierY;
+          placeTier('public', `${vpc.id}_web_tier`, 'Web Tier — Public Subnets',
+            'tier_web', 'subnet_public', webTierH, null);
+          tierLabelData.push({ label: 'Web\nTier', y: tierStartY, h: webTierH, color: '#2e7d32' });
+        }
+
+        // ── NAT Gateways (between tiers) ──
+        if (hasWebTier && (hasAppTier || hasDbTier) && natRowH > 0) {
+          const activAzs = azNames.filter(az => vpcData.azs[az].public.length > 0 || vpcData.azs[az].private.length > 0);
+          const usedWidth = activAzs.length * azColW + (activAzs.length - 1) * AZ_GAP;
+          let azX = vpcStartX + PAD + Math.max(10, ((vpcW - PAD * 2) - usedWidth) / 2);
+
+          activAzs.forEach((az) => {
+            const azCx = azX + azColW / 2;
+            const azNats = nats.filter(n => {
+              const azData = vpcData.azs[az];
+              if (n.subnet_id) return azData.public.some(s => s.id === n.subnet_id) || azData.private.some(s => s.id === n.subnet_id);
+              return n.az === az && n.vpc_id === vpc.id;
+            });
+            azNats.forEach((nat, ni) => {
+              const natId = `nat_${nat.id}`;
+              addResource(natId, 'nat', 'NAT GW', {
+                x: azCx - 28 + ni * 70, y: tierY + 8,
+                parentId: vpc.id,
+                resourceData: { ...nat, nodeType: 'nat' },
+              });
+              nodeIds.add(natId);
+              if (nat.subnet_id && nodeIds.has(nat.subnet_id)) {
+                addLink(natId, nat.subnet_id, { color: '#22c55e' });
+              }
+            });
+            azX += azColW + AZ_GAP;
+          });
+          tierY += natRowH;
+        }
+
+        // ── Route Table Banner (Public) ──
+        if (hasWebTier && (hasAppTier || hasDbTier)) {
+          placeRtBanner(`${vpc.id}_rt_pub`, true);
+        }
+
+        // ── Application Tier (private subnets without RDS) ──
+        if (hasAppTier && appTierH > 0) {
+          const tierStartY = tierY;
+          placeTier('private', `${vpc.id}_app_tier`, 'Application Tier — Private Subnets',
+            'tier_app', 'subnet_private', appTierH,
+            s => { const sRes = subnetResources[s.id] || []; return !sRes.some(r => r.type === 'rds'); });
+          tierLabelData.push({ label: 'App\nTier', y: tierStartY, h: appTierH, color: '#e65100' });
+        }
+
+        // ── Route Table Banner (Private) ──
+        if (hasAppTier && hasDbTier) {
+          placeRtBanner(`${vpc.id}_rt_priv`, false);
+        }
+
+        // ── Database Tier (private subnets with RDS) ──
+        if (hasDbTier && dbTierH > 0) {
+          const tierStartY = tierY;
+          placeTier('private', `${vpc.id}_db_tier`, 'Database Tier — Private Subnets',
+            'tier_db', 'subnet_private', dbTierH,
+            s => { const sRes = subnetResources[s.id] || []; return sRes.some(r => r.type === 'rds'); });
+          tierLabelData.push({ label: 'DB\nTier', y: tierStartY, h: dbTierH, color: '#1565c0' });
+        }
+
+        // ── VPC-level resources ──
+        if (vpcExtraRes.length > 0) {
+          const resStartY = tierY + 10;
+          const colW = Math.max((vpcW - PAD * 2) / vpcResColsPerRow, 70);
+          let placed = 0;
+          vpcExtraRes.forEach((r) => {
+            if (nodeIds.has(r.id)) return;
+            const col = placed % vpcResColsPerRow;
+            const row = Math.floor(placed / vpcResColsPerRow);
+            addResource(r.id, r.type, typeTag(r.type), {
+              x: vpcStartX + PAD + col * colW, y: resStartY + row * (RES_H + 12),
+              parentId: vpc.id,
+              resourceData: { ...r, nodeType: r.type },
+            });
+            nodeIds.add(r.id);
+            placed++;
+          });
+        }
+
+        // ── Place tier chevron labels ──
+        tierLabelData.forEach(td => {
+          const labelId = `_tier_label_${vpc.id}_${td.label.replace(/\s/g, '')}`;
+          const tc = getThemeColors();
+          const el = new shapes.standard.Rectangle({
+            id: labelId,
+            position: { x: tierLabelX, y: td.y },
+            size: { width: TIER_LABEL_W, height: td.h },
+            attrs: {
+              body: {
+                fill: td.color + '20', stroke: td.color, strokeWidth: 1.5,
+                rx: 4, ry: 4,
+              },
+              label: {
+                text: td.label, fill: td.color,
+                fontSize: 10, fontWeight: 700,
+                fontFamily: "Inter, system-ui, sans-serif",
+                textAnchor: 'middle', textVerticalAnchor: 'middle',
+                refX: '50%', refY: '50%',
+              },
+            },
+          });
+          _graph.addCell(el);
+        });
+
+        const totalVpcH = vpcY + vpcH;
+        regionMaxH = Math.max(regionMaxH, totalVpcH + 20);
+        vpcStartX += vpcW + 60;
+        globalX = vpcStartX;
+      });
+
+      // ── Create Region container (wraps all VPCs in this region) ──
+      const regionW = globalX - regionStartX + PAD;
+      const regionH = regionMaxH;
+      addContainer(regionId, `Region (${regionName})`, {
+        containerType: 'region',
+        x: regionStartX, y: 30,
+        width: regionW, height: regionH,
+      });
+      // Move region to back so VPCs render on top
+      const regionCell = _graph.getCell(regionId);
+      if (regionCell) regionCell.toBack();
+
+      regionContainers.push({ id: regionId, x: regionStartX, y: 30, w: regionW, h: regionH });
+
+      // ── Auxiliary Services Panel (right of region) ──
+      const AUX_SERVICES = [
+        { type: 'iam', label: 'IAM' },
+        { type: 'guardduty', label: 'GuardDuty' },
+        { type: 'cloudwatch', label: 'CloudWatch' },
+        { type: 'cloudtrail', label: 'CloudTrail' },
+        { type: 'backup', label: 'AWS Backup' },
+        { type: 's3', label: 'Amazon S3' },
+      ];
+
+      const auxX = regionStartX + regionW + 20;
+      const auxPanelH = AUX_SERVICES.length * 76 + 40;
+      addContainer(`_aux_${regionName}`, 'AWS Services', {
+        containerType: 'aux_panel',
+        x: auxX, y: 30,
+        width: 90, height: auxPanelH,
+      });
+
+      AUX_SERVICES.forEach((svc, i) => {
+        const svcId = `_aux_svc_${regionName}_${svc.type}`;
+        addResource(svcId, svc.type, svc.label, {
+          x: auxX + 17, y: 60 + i * 76,
+          width: 56, height: 68, iconSize: 32,
+          parentId: `_aux_${regionName}`,
+        });
+      });
+
+      globalX = auxX + 130;
     });
 
     // ── Global resources — grouped in a container ──
@@ -1423,7 +1663,6 @@
         grouped[r.type].push(r);
       });
 
-      // Create a "Global Services" container
       const groupTypes = Object.keys(grouped);
       const GCOLS = 4;
       let totalGlobalItems = 0;
@@ -1454,6 +1693,11 @@
         });
       });
     }
+
+    // ══════════════════════════════════════════════════════════
+    // KEEP ALL EXISTING EDGE/LINK CODE BELOW EXACTLY AS-IS
+    // (peering, TGW, ELB, route table, SG, CloudFront, VPC endpoint, EKS, Lambda, VPN, NW Firewall, ECS, Route53)
+    // ══════════════════════════════════════════════════════════
 
     // Peering edges
     resources.filter(r => r.type === 'peering').forEach(p => {
@@ -2303,6 +2547,7 @@
 
     // ── Map Controls (zoom, fullscreen, fit) ──
     setupMapControls();
+    setupMinimapDrag();
 
     // ── Diagram export buttons (in Reports section) ──
     document.getElementById('expPngBtn')?.addEventListener('click', () => { exportWithFeedback('png'); });
@@ -2675,6 +2920,68 @@
     viewport.style.top = `${Math.max(0, vpY)}px`;
     viewport.style.width = `${Math.min(cw, vpW)}px`;
     viewport.style.height = `${Math.min(ch, vpH)}px`;
+
+    // Store minimap metrics for drag navigation
+    _minimapMetrics = { minX, minY, contentW, contentH, minimapScale, offsetX, offsetY, pad };
+  }
+
+  // ── Minimap metrics (shared with drag handler) ──
+  let _minimapMetrics = null;
+  let _minimapDragActive = false;
+
+  function setupMinimapDrag() {
+    const container = document.getElementById('minimapContainer');
+    const canvas = document.getElementById('minimapCanvas');
+    if (!container || !canvas) return;
+
+    function navigateToMinimapPoint(clientX, clientY) {
+      if (!_paper || !_graph || !_minimapMetrics) return;
+      const m = _minimapMetrics;
+      const rect = canvas.getBoundingClientRect();
+      const mx = clientX - rect.left;
+      const my = clientY - rect.top;
+
+      // Convert minimap coords to content coords
+      const contentX = (mx - m.offsetX) / m.minimapScale - m.pad + m.minX;
+      const contentY = (my - m.offsetY) / m.minimapScale - m.pad + m.minY;
+
+      // Center the paper view on this point
+      const scale = _paper.scale().sx;
+      const paperW = _paper.el.clientWidth || 1200;
+      const paperH = _paper.el.clientHeight || 780;
+      const tx = -contentX * scale + paperW / 2;
+      const ty = -contentY * scale + paperH / 2;
+      _paper.translate(tx, ty);
+      updateMinimap();
+    }
+
+    container.addEventListener('pointerdown', (e) => {
+      if (e.target.closest('.minimap-toggle')) return; // don't interfere with close button
+      e.preventDefault();
+      _minimapDragActive = true;
+      container.setPointerCapture(e.pointerId);
+      container.style.cursor = 'grabbing';
+      navigateToMinimapPoint(e.clientX, e.clientY);
+    });
+
+    container.addEventListener('pointermove', (e) => {
+      if (!_minimapDragActive) return;
+      e.preventDefault();
+      navigateToMinimapPoint(e.clientX, e.clientY);
+    });
+
+    container.addEventListener('pointerup', (e) => {
+      if (_minimapDragActive) {
+        _minimapDragActive = false;
+        container.releasePointerCapture(e.pointerId);
+        container.style.cursor = '';
+      }
+    });
+
+    container.addEventListener('pointercancel', (e) => {
+      _minimapDragActive = false;
+      container.style.cursor = '';
+    });
   }
 
   // ══════════════════════════════════════════════════════════
