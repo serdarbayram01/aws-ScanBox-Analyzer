@@ -1,5 +1,5 @@
 <p align="center">
-  <a href="https://aws-scanbox-web.vercel.app/">
+  <a href="https://aws-scanbox.serdarbayram.net/">
     <img src="img/scanbox_demo.gif" alt="ScanBox — AWS FinSecOps Analyzer Demo" width="720" />
   </a>
 </p>
@@ -12,7 +12,7 @@
 </p>
 
 <p align="center">
-  <a href="https://aws-scanbox-web.vercel.app/">Website</a> &bull;
+  <a href="https://aws-scanbox.serdarbayram.net/">Website</a> &bull;
   <a href="#installation">Installation</a> &bull;
   <a href="#modules">Modules</a> &bull;
   <a href="#contributing">Contributing</a> &bull;
@@ -21,7 +21,7 @@
 </p>
 
 <p align="center">
-  <a href="https://aws-scanbox-web.vercel.app/"><img src="https://img.shields.io/badge/Website-aws--scanbox--web-ff9900?style=for-the-badge&logo=vercel&logoColor=white" alt="Website" /></a>
+  <a href="https://aws-scanbox.serdarbayram.net/"><img src="https://img.shields.io/badge/Website-aws--scanbox--web-ff9900?style=for-the-badge&logo=vercel&logoColor=white" alt="Website" /></a>
   <br/>
   <img src="https://img.shields.io/badge/python-3.8+-3776AB?logo=python&logoColor=white" alt="Python 3.8+" />
   <img src="https://img.shields.io/badge/flask-2.3+-000000?logo=flask&logoColor=white" alt="Flask" />
