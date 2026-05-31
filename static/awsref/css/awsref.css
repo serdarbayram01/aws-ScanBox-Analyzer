@@ -1,0 +1,833 @@
+/* AWS Reference module styles. All colours use theme.css variables so
+   dark/light toggle and tema değişimi otomatik çalışır. */
+
+.awsref-page { padding: 0 4px; }
+
+.awsref-tab-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.awsref-tab-strip {
+  display: flex;
+  gap: 4px;
+}
+
+/* .fw-tab styling lives in theme.css (re-used from SecOps framework tabs). */
+
+.awsref-info-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  padding: 4px 10px;
+  border-radius: 14px;
+  margin-left: auto;
+}
+
+.awsref-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 6px 2px 10px;
+}
+
+.awsref-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.awsref-select {
+  padding: 5px 10px;
+  background: var(--bg-base);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-family: inherit;
+  min-width: 240px;
+}
+
+.awsref-search-input {
+  padding: 5px 10px;
+  background: var(--bg-base);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-family: inherit;
+  min-width: 220px;
+}
+.awsref-search-input::placeholder { color: var(--text-muted); }
+
+.awsref-pretty-name {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.awsref-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.awsref-checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.awsref-checkbox-label input[type=checkbox] {
+  accent-color: var(--accent);
+}
+
+.awsref-table { width: 100%; font-size: 12px; }
+.awsref-table th { white-space: nowrap; }
+.awsref-table td { font-variant-numeric: tabular-nums; }
+
+/* Latency colour bands — readable on both dark and light themes via vars.
+   These are applied via inline `style` from JS so they pick up theme changes. */
+.awsref-latency-good   { color: #16a34a; font-weight: 600; }
+.awsref-latency-mid    { color: #d97706; font-weight: 600; }
+.awsref-latency-bad    { color: #dc2626; font-weight: 600; }
+.awsref-latency-na     { color: var(--text-muted); }
+
+/* Scope badges (lz-data-plane / regional / global / lz-link-local) */
+.awsref-scope-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  padding: 2px 7px;
+  border-radius: 10px;
+  text-transform: uppercase;
+}
+.awsref-scope-lz-data-plane { background: rgba(22,163,74,0.18); color: #16a34a; }
+.awsref-scope-regional      { background: rgba(217,119,6,0.18); color: #d97706; }
+.awsref-scope-global        { background: rgba(96,165,250,0.18); color: #60a5fa; }
+.awsref-scope-lz-link-local { background: rgba(122,144,168,0.18); color: var(--text-muted); }
+
+.awsref-reachable-yes {
+  color: #16a34a;
+  font-weight: 700;
+}
+.awsref-reachable-no {
+  color: #dc2626;
+  font-weight: 700;
+}
+
+.awsref-empty {
+  text-align: center;
+  padding: 24px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+/* ─── AWS Region Latency Matrix ─────────────────────────────────────── */
+.awsref-matrix-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-top: 6px;
+  margin-bottom: 12px;
+}
+.awsref-matrix-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.awsref-about-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: 11.5px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.awsref-about-btn:hover { color: var(--text-primary); border-color: var(--text-muted); }
+
+.awsref-about-panel {
+  background: var(--bg-card);
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  padding: 0;
+  margin-bottom: 16px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  overflow: hidden;
+}
+.awsref-about-panel p { margin: 10px 0; }
+.awsref-about-panel code {
+  background: var(--bg-base);
+  border: 1px solid var(--border);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--accent);
+}
+
+/* Tab strip inside About panel — matches reference benchsuite look */
+.awsref-info-tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 12px 0;
+  border-bottom: 1px solid var(--border);
+  background: rgba(255,255,255,0.02);
+}
+.awsref-info-tab {
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  color: var(--text-muted);
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+  transition: color 0.15s, border-color 0.15s;
+}
+.awsref-info-tab:hover { color: var(--text-secondary); }
+.awsref-info-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+.awsref-info-close {
+  margin-left: auto;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-muted);
+  width: 26px; height: 26px;
+  font-size: 16px;
+  cursor: pointer;
+  line-height: 1;
+  margin-bottom: 6px;
+}
+.awsref-info-close:hover { color: var(--text-primary); border-color: var(--text-muted); }
+
+.awsref-info-pane { padding: 14px 18px; }
+.awsref-info-pane b { color: var(--accent); font-weight: 600; }
+.awsref-info-pane i { color: var(--text-muted); }
+
+.awsref-info-caveat {
+  background: rgba(217, 119, 6, 0.12);
+  border-left: 3px solid var(--warn, #d97706);
+  padding: 10px 14px;
+  border-radius: 4px;
+  margin: 12px 0;
+}
+.awsref-info-caveat b { color: var(--warn, #d97706); }
+
+.awsref-info-compare {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+.awsref-info-compare th,
+.awsref-info-compare td {
+  border: 1px solid var(--border);
+  padding: 8px 12px;
+  text-align: left;
+  vertical-align: top;
+}
+.awsref-info-compare thead th {
+  background: rgba(255,255,255,0.03);
+  color: var(--accent);
+  font-weight: 600;
+}
+.awsref-info-compare tbody th {
+  background: rgba(255,255,255,0.02);
+  color: var(--text-secondary);
+  font-weight: 600;
+  width: 160px;
+}
+
+/* LZ row/column tint to distinguish from regions in the matrix.
+   `background-color` is solid bg-card so sticky positioning never reveals
+   body content behind the header. The purple tint is layered on top via
+   `background-image` (a linear gradient that fades from tinted → transparent
+   leaves the solid base visible). */
+.awsref-matrix-table thead th.awsref-col-lz {
+  background-color: var(--bg-card);
+  background-image: linear-gradient(180deg, rgba(124,77,255,0.22), transparent 70%);
+}
+.awsref-matrix-table tbody th.awsref-row-lz {
+  background-color: var(--bg-card);
+  background-image: linear-gradient(90deg, rgba(124,77,255,0.22), transparent 70%);
+}
+
+/* Metrics tab — chip selector */
+.awsref-metric-intro {
+  color: var(--text-muted);
+  font-size: 12.5px;
+  margin: 4px 0 12px;
+}
+.awsref-metric-intro i { color: var(--text-secondary); font-style: italic; }
+.awsref-metric-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px 0 14px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 14px;
+}
+.awsref-metric-chip {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text-secondary);
+  padding: 7px 14px;
+  font-size: 12px;
+  font-family: var(--font-mono);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.awsref-metric-chip:hover {
+  color: var(--text-primary);
+  border-color: var(--text-muted);
+}
+.awsref-metric-chip.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--bg-base);
+  font-weight: 600;
+}
+.awsref-metric-defs p { margin: 10px 0; }
+
+/* Services table — sortable headers + column filter row */
+.awsref-svc-count {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-right: 8px;
+  white-space: nowrap;
+}
+.awsref-services-table th.awsref-sortable {
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+  transition: background 0.12s;
+}
+.awsref-services-table th.awsref-sortable:hover {
+  background: rgba(255,255,255,0.04);
+  color: var(--text-primary);
+}
+.awsref-services-table th.awsref-sorted {
+  color: var(--accent);
+}
+.awsref-sort-ind {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  margin-left: 2px;
+}
+.awsref-services-table tr.awsref-filter-row > th {
+  padding: 4px 6px;
+  background: var(--bg-base);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  font-weight: normal;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.awsref-col-filter-input,
+.awsref-col-filter-select {
+  width: 100%;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-primary);
+  padding: 5px 8px;
+  font-size: 12px;
+  font-family: inherit;
+}
+.awsref-col-filter-input:focus,
+.awsref-col-filter-select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.awsref-col-filter-input::placeholder {
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+
+/* Service Endpoints table — every AWS service endpoint in the region/LZ
+   (~36+ rows). Bound the height so the list scrolls *inside its own card*
+   with a sticky header + filter row, instead of running off the bottom of
+   the page and leaving rows unreachable. Mirrors the LZ catalog table. */
+.awsref-svc-scroll {
+  max-height: calc(100vh - 300px);
+  min-height: 240px;
+  overflow-x: auto;
+  overflow-y: auto;
+}
+/* Both header rows pin to the top of the scroll container. The second
+   selector is needed because `.awsref-services-table th.awsref-sortable`
+   sets `position: relative` at equal specificity — without re-asserting
+   `sticky` here the sort row would scroll away and data rows would bleed
+   into the gap above the filter row. */
+.awsref-services-table thead th,
+.awsref-services-table thead th.awsref-sortable {
+  position: sticky;
+  top: 0;
+  background: var(--bg-card);
+  z-index: 3;
+}
+.awsref-services-table tr.awsref-filter-row > th {
+  position: sticky;
+  top: 36px;   /* sits flush below the sort row */
+  z-index: 3;
+  background: var(--bg-base);
+}
+
+/* LZ Detail panels — instance type chips + services catalog */
+.awsref-lz-panel { padding: 14px 16px; }
+.awsref-lz-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+.awsref-lz-panel-icon {
+  color: var(--accent);
+  font-size: 14px;
+}
+.awsref-lz-panel-source {
+  margin-left: 8px;
+  font-size: 10px;
+  color: var(--text-muted);
+  font-weight: normal;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.awsref-lz-panel-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 0 0 12px;
+}
+.awsref-lz-panel-desc i { color: var(--text-secondary); }
+
+.awsref-instance-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.awsref-inst-chip {
+  background: var(--bg-base);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 10px;
+  font-size: 11.5px;
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
+}
+
+/* LZ catalog status badges */
+.awsref-lz-status {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 11px;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  text-transform: lowercase;
+}
+.awsref-lz-status-supported {
+  background: rgba(22, 163, 74, 0.18);
+  color: #16a34a;
+  border: 1px solid rgba(22, 163, 74, 0.4);
+}
+.awsref-lz-status-partial {
+  background: rgba(217, 119, 6, 0.18);
+  color: #d97706;
+  border: 1px solid rgba(217, 119, 6, 0.4);
+}
+.awsref-lz-status-unsupported {
+  background: rgba(220, 38, 38, 0.18);
+  color: #dc2626;
+  border: 1px solid rgba(220, 38, 38, 0.4);
+}
+
+.awsref-lz-cat-cell {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  background: var(--bg-base);
+  border: 1px solid var(--border);
+  padding: 2px 8px;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+
+/* LZ catalog table — long list, needs sticky header + bounded height */
+.awsref-lz-catalog-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--bg-card);
+  z-index: 1;
+}
+.awsref-lz-catalog-table tr.awsref-filter-row > th {
+  top: 36px;   /* sticks below the sort row */
+  z-index: 1;
+}
+.awsref-lz-panel .table-card,
+.awsref-lz-catalog-table {
+  /* ensure scroll containers work */
+}
+#awsrefLzCatTable {
+  width: 100%;
+}
+/* Bound the long catalog list so it shows a scrollbar instead of forcing the
+   whole page to scroll for hundreds of rows. */
+.awsref-lz-panel > div[style*="overflow-x:auto"] {
+  max-height: calc(100vh - 280px);
+  min-height: 240px;
+  overflow-y: auto !important;
+}
+
+.awsref-lz-stat-filtering {
+  background: var(--accent) !important;
+  color: var(--bg-base) !important;
+  font-weight: 700;
+}
+
+.awsref-lz-stats {
+  display: flex;
+  gap: 8px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+}
+.awsref-lz-stat { padding: 3px 8px; border-radius: 4px; font-weight: 600; }
+.awsref-lz-stat-sup { background: rgba(22, 163, 74, 0.15); color: #16a34a; }
+.awsref-lz-stat-par { background: rgba(217, 119, 6, 0.15); color: #d97706; }
+.awsref-lz-stat-uns { background: rgba(220, 38, 38, 0.15); color: #dc2626; }
+.awsref-lz-stat-total { background: rgba(120, 120, 200, 0.15); color: var(--text-primary); }
+.awsref-lz-stat-src {
+  background: var(--bg-base);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  font-weight: normal;
+}
+
+/* Mode toggle (Local probe / Full mesh) */
+.awsref-mode-bar {
+  display: inline-flex;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 3px;
+  margin-bottom: 14px;
+}
+.awsref-mode-btn {
+  background: transparent;
+  border: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background var(--transition), color var(--transition);
+}
+.awsref-mode-btn:hover { color: var(--text-primary); }
+.awsref-mode-btn.active {
+  background: var(--accent);
+  color: #0b1220;
+}
+
+/* Filter grid (Percentile / Timeframe / Show / From / To) */
+.awsref-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px 16px;
+  margin-bottom: 14px;
+}
+.awsref-filter-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.awsref-action-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.awsref-load-btn {
+  background: #3b82f6;
+  color: #fff;
+  border: 0;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 8px 18px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background var(--transition);
+}
+.awsref-load-btn:hover { background: #2563eb; }
+.awsref-load-btn:disabled {
+  background: var(--bg-card);
+  color: var(--text-muted);
+  cursor: not-allowed;
+  border: 1px solid var(--border);
+}
+
+.awsref-status-line {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+.awsref-status-line.awsref-status-warn {
+  color: var(--warn, #d97706);
+}
+
+/* Big honest banner shown above the matrix when the API returns substituted
+   P50/1D data instead of the selected percentile/timeframe. */
+.awsref-substitution-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background: rgba(217, 119, 6, 0.12);
+  border: 1px solid rgba(217, 119, 6, 0.4);
+  border-left: 4px solid var(--warn, #d97706);
+  border-radius: 6px;
+  padding: 12px 16px;
+  margin: 8px 0 14px;
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+.awsref-substitution-banner svg {
+  color: var(--warn, #d97706);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.awsref-sub-title {
+  font-weight: 600;
+  color: var(--warn, #d97706);
+  margin-bottom: 4px;
+  font-size: 13px;
+}
+.awsref-sub-body code {
+  background: var(--bg-base);
+  border: 1px solid var(--border);
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--accent);
+}
+
+/* Color legend */
+.awsref-legend {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin: 10px 0;
+  padding: 6px 0;
+}
+.awsref-legend-dot {
+  width: 9px; height: 9px; border-radius: 50%;
+  display: inline-block;
+  margin-left: 6px;
+}
+.awsref-legend-dot:first-child { margin-left: 0; }
+.awsref-legend-good { background: #16a34a; }
+.awsref-legend-mid  { background: #d97706; }
+.awsref-legend-bad  { background: #dc2626; }
+.awsref-legend-na   { background: var(--text-muted); }
+.awsref-legend-spacer { flex: 1; }
+
+/* Matrix table — sticky row/col headers, compact cells.
+   Wrap height auto-fits the viewport so the bottom never bleeds past the
+   page edge; the bottom margin gives the user a visible separator from
+   the page footer. The padding has to be 0 so the sticky thead can
+   anchor flush with the wrap's top — any padding shifts the sticky
+   offset and causes rows to peek out above the headers. */
+.awsref-matrix-wrap {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0;
+  overflow: auto;
+  max-height: calc(100vh - 280px);
+  min-height: 300px;
+  margin-bottom: 5vh;
+  position: relative;
+  box-shadow: 0 1px 0 var(--border) inset;
+}
+.awsref-matrix-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+}
+.awsref-matrix-table th,
+.awsref-matrix-table td {
+  border: 1px solid var(--border);
+  padding: 4px 6px;
+  text-align: center;
+  white-space: nowrap;
+}
+.awsref-matrix-table thead th {
+  background: var(--bg-card);
+  color: var(--text-muted);
+  font-weight: 700;
+  font-size: 10px;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+/* Rotated column headers for compact horizontal space.
+   `background` here is critical — when sticky, body cells scroll *behind*
+   the header. Without a fully-opaque background, body content shows
+   through the header and the latency numbers become unreadable.
+   We use the layered `background-color` + (optional) `background-image`
+   pattern so the LZ tint (col-lz) can sit on top of a solid card colour
+   without ever becoming see-through. */
+.awsref-matrix-table thead th.awsref-col-rot {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  height: 165px;             /* fits 'ap-northeast-1-tpe-1a' (21 chars) */
+  vertical-align: bottom;
+  padding: 8px 2px;
+  font-family: var(--font-mono);
+  text-transform: lowercase;
+  letter-spacing: 0;
+  min-width: 28px;
+  background-color: var(--bg-card);  /* opaque base — must NOT be transparent */
+  background-image: none;
+  white-space: nowrap;
+  overflow: visible;
+}
+/* Sticky row header (FROM column) */
+.awsref-matrix-table tbody th.awsref-row-head {
+  background: var(--bg-card);
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  text-align: left;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 11px;
+  padding: 4px 10px;
+  min-width: 175px;
+}
+.awsref-matrix-table tbody th.awsref-row-head .awsref-row-sub {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-top: 1px;
+  font-family: var(--font-sans);
+  font-weight: 400;
+}
+.awsref-matrix-table thead th.awsref-corner {
+  text-align: left;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  padding: 8px 10px;
+  min-width: 175px;
+  position: sticky;
+  top: 0;
+  left: 0;
+  z-index: 4;
+  background: var(--bg-card);
+}
+.awsref-matrix-table tbody td {
+  font-weight: 600;
+  min-width: 36px;
+}
+.awsref-matrix-table tbody td.cell-good { background: rgba(22,163,74,0.18); color: #16a34a; }
+.awsref-matrix-table tbody td.cell-mid  { background: rgba(217,119,6,0.18); color: #d97706; }
+.awsref-matrix-table tbody td.cell-bad  { background: rgba(220,38,38,0.18); color: #dc2626; }
+.awsref-matrix-table tbody td.cell-self {
+  color: var(--text-muted);
+  background: var(--bg-base);
+}
+.awsref-matrix-table tbody td.cell-na {
+  color: var(--text-muted);
+  background: var(--bg-base);
+}
+
+/* Custom horizontal hover tooltip — rotated column headers are hard to
+   read; this gives the user a clean horizontal readout on hover for any
+   header or cell in the matrix. */
+.awsref-matrix-tooltip {
+  position: fixed;
+  z-index: 1000;
+  background: var(--bg-card);
+  border: 1px solid var(--accent);
+  color: var(--text-primary);
+  padding: 5px 11px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: var(--font-mono);
+  pointer-events: none;
+  white-space: nowrap;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.45);
+  transform: translate(-50%, calc(-100% - 6px));
+  display: none;
+  max-width: 320px;
+  line-height: 1.4;
+}
+.awsref-matrix-tooltip .awsref-tt-line + .awsref-tt-line {
+  color: var(--text-muted);
+  font-size: 11px;
+  margin-top: 2px;
+}
+
+/* CloudPing "not configured" placeholder */
+.awsref-cloudping-empty {
+  text-align: center;
+  padding: 60px 24px;
+  color: var(--text-muted);
+  font-size: 13px;
+  background: var(--bg-card);
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+}
+.awsref-cloudping-empty strong { color: var(--text-secondary); }
+.awsref-cloudping-empty code {
+  background: var(--bg-base);
+  border: 1px solid var(--border);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}

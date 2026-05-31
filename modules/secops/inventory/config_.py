@@ -12,6 +12,56 @@ def run_checks(session, exclude_defaults=False, regions=None):
         except Exception as exc:
             return [not_available('config_regions', SERVICE, str(exc))]
 
+    # Multi-account aggregator check — runs ONCE from us-east-1 (account-level concept).
+    # An aggregator is essential for centralised compliance visibility across an
+    # AWS Organization or a list of accounts/regions.
+    try:
+        cfg_global = session.client('config', region_name='us-east-1')
+        aggs = cfg_global.describe_configuration_aggregators().get('ConfigurationAggregators', [])
+        has_agg = len(aggs) > 0
+        agg_types = set()
+        for a in aggs:
+            if a.get('OrganizationAggregationSource'):
+                agg_types.add('Organization')
+            if a.get('AccountAggregationSources'):
+                agg_types.add('Account-list')
+        findings.append(make_finding(
+            id='config_aggregator',
+            title='AWS Config multi-account aggregator',
+            title_tr='AWS Config çoklu hesap toplayıcı',
+            description=(
+                f'{"Found " + str(len(aggs)) + " configuration aggregator(s): " + ", ".join(sorted(agg_types)) if has_agg else "No configuration aggregator found"}. '
+                f'Aggregators give a unified compliance view across accounts/regions — '
+                f'required for AWS Organizations security tooling and centralised audit dashboards.'
+            ),
+            description_tr=(
+                f'{str(len(aggs)) + " yapılandırma toplayıcı bulundu: " + ", ".join(sorted(agg_types)) if has_agg else "Yapılandırma toplayıcı bulunamadı"}. '
+                f'Toplayıcılar hesaplar/bölgeler genelinde birleşik bir uyumluluk görünümü sağlar — '
+                f'AWS Organizations güvenlik araçları ve merkezi denetim panoları için gereklidir.'
+            ),
+            severity='LOW', status='PASS' if has_agg else 'WARNING',
+            service=SERVICE, resource_id='account',
+            resource_type='AWS::Config::ConfigurationAggregator', region='global',
+            frameworks={
+                'SOC2':     ['CC7.1', 'CC4.1'],
+                'ISO27001': ['A.12.4.1', 'A.18.2.2'],
+                'WAFR':     {'pillar': 'Operational Excellence', 'controls': ['OPS01', 'OPS04']},
+            },
+            remediation=(
+                'Config → Aggregators → Create aggregator. For Organizations: select '
+                '"My organization"; otherwise add individual accounts + regions. '
+                'Enable from the security/audit account.'
+            ),
+            remediation_tr=(
+                'Config → Aggregators → Toplayıcı oluştur. Organizations için: '
+                '"My organization" seçin; aksi takdirde tek tek hesaplar + bölgeler ekleyin. '
+                'Güvenlik/denetim hesabından etkinleştirin.'
+            ),
+            details={'count': len(aggs), 'sources': sorted(agg_types)},
+        ))
+    except Exception as exc:
+        findings.append(not_available('config_aggregator', SERVICE, str(exc)))
+
     for region in regions:
         cfg = session.client('config', region_name=region)
         try:
@@ -26,7 +76,8 @@ def run_checks(session, exclude_defaults=False, regions=None):
                     severity='HIGH', status='FAIL',
                     service=SERVICE, resource_id=region,
                     resource_type='AWS::Config::ConfigurationRecorder', region=region,
-                    frameworks={'CIS': ['3.5'], 'HIPAA': ['164.312(b)'], 'ISO27001': ['A.12.4.1'],
+                    frameworks={
+                                'SOC2': ['CC7.1', 'CC8.1'],'CIS': ['3.5'], 'HIPAA': ['164.312(b)'], 'ISO27001': ['A.12.4.1'],
                                 'WAFR': {'pillar': 'Operational Excellence', 'controls': ['OPS01']}},
                     remediation=f'Config Console ({region}) → Set up Config → Enable recording.',
                     remediation_tr=f'Config Konsol ({region}) → Config\'i kur → Kaydı etkinleştir.',
@@ -47,7 +98,8 @@ def run_checks(session, exclude_defaults=False, regions=None):
                 severity='HIGH', status='PASS' if recording else 'FAIL',
                 service=SERVICE, resource_id=rec_name,
                 resource_type='AWS::Config::ConfigurationRecorder', region=region,
-                frameworks={'CIS': ['3.5'], 'ISO27001': ['A.12.4.1'],
+                frameworks={
+                            'SOC2': ['CC7.1'],'CIS': ['3.5'], 'ISO27001': ['A.12.4.1'],
                             'WAFR': {'pillar': 'Operational Excellence', 'controls': ['OPS01']}},
                 remediation=f'Config Console ({region}) → Start recording.',
                 remediation_tr=f'Config Konsol ({region}) → Kaydı başlat.',
@@ -68,7 +120,8 @@ def run_checks(session, exclude_defaults=False, regions=None):
                         severity='MEDIUM', status='FAIL',
                         service=SERVICE, resource_id=rule_name,
                         resource_type='AWS::Config::ConfigRule', region=region,
-                        frameworks={'WAFR': {'pillar': 'Operational Excellence', 'controls': ['OPS01']}},
+                        frameworks={
+                                    'SOC2': ['CC7.1'],'WAFR': {'pillar': 'Operational Excellence', 'controls': ['OPS01']}},
                         remediation=f'Config Console → Rules → {rule_name} → View non-compliant resources.',
                         remediation_tr=f'Config Konsol → Kurallar → {rule_name} → Uyumsuz kaynakları görüntüle.',
                     ))

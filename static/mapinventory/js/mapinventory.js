@@ -977,31 +977,192 @@ function renderCharts(meta, resources) {
     });
   }
 
-  // --- Default Donut ---
-  let defaultCount = 0, customCount = 0;
+  // --- Default vs Custom — two-zone treemap ---
+  // Outer split: Custom zone (left, green) vs Default zone (right, grey),
+  // each sized by its share of total resources. Inside each zone, per-service
+  // tiles are sized by their contribution to that zone. This lets the user
+  // see at a glance "what's the default/custom split" AND "which services
+  // dominate each side".
+  renderDefaultTreemap(resources);
+}
+
+function renderDefaultTreemap(resources) {
+  const wrap = document.getElementById('defaultTreemapWrap');
+  if (!wrap) return;
+
+  // Bucket by service
+  const buckets = {};
+  let totalDef = 0, totalCust = 0;
   for (const r of resources) {
-    if (r.is_default) defaultCount++; else customCount++;
+    const s = r.service || '?';
+    if (!buckets[s]) buckets[s] = { def: 0, cust: 0 };
+    if (r.is_default) { buckets[s].def += 1; totalDef += 1; }
+    else              { buckets[s].cust += 1; totalCust += 1; }
   }
-  const defCtx = document.getElementById('defaultDonutChart');
-  if (defCtx && (defaultCount > 0 || customCount > 0)) {
-    // Filter out zero segments
-    const defLabels = [], defData = [], defColors = [];
-    if (customCount > 0) { defLabels.push(t('mapinv_custom')); defData.push(customCount); defColors.push('#00c87a'); }
-    if (defaultCount > 0) { defLabels.push(t('mapinv_default')); defData.push(defaultCount); defColors.push('#7a90a8'); }
-    _charts.defaultDonut = new Chart(defCtx, {
-      type: 'doughnut',
-      data: {
-        labels: defLabels,
-        datasets: [{ data: defData, backgroundColor: defColors, borderWidth: 0 }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        cutout: '55%',
-        plugins: { legend: { position: 'bottom', labels: { font: { size: 13 }, color: cc.text, padding: 12 } } },
-      }
+
+  const grandTotal = totalDef + totalCust;
+  if (grandTotal === 0) {
+    wrap.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;flex:1;font-size:12px;color:var(--text-muted)">${
+      (typeof t === 'function' && t('mapinv_no_data')) || 'No resources'
+    }</div>`;
+    return;
+  }
+
+  // Build per-zone service lists (only services that have resources in THIS zone)
+  const customList = Object.entries(buckets)
+    .filter(([, c]) => c.cust > 0)
+    .map(([svc, c]) => ({ svc, count: c.cust }))
+    .sort((a, b) => b.count - a.count);
+  const defaultList = Object.entries(buckets)
+    .filter(([, c]) => c.def > 0)
+    .map(([svc, c]) => ({ svc, count: c.def }))
+    .sort((a, b) => b.count - a.count);
+
+  // Top-zone widths from the total split (Custom vs Default share).
+  const customShare  = totalCust / grandTotal;
+  const defaultShare = totalDef  / grandTotal;
+  // Guarantee a minimum visible width when one side is tiny but non-zero.
+  const minSharePct = 12;
+  const custPctRaw  = Math.round(customShare  * 100);
+  const defPctRaw   = Math.round(defaultShare * 100);
+  let custWidthPct, defWidthPct;
+  if (totalDef === 0)        { custWidthPct = 100;          defWidthPct = 0; }
+  else if (totalCust === 0)  { custWidthPct = 0;            defWidthPct = 100; }
+  else {
+    custWidthPct = Math.max(minSharePct, Math.min(100 - minSharePct, custPctRaw));
+    defWidthPct  = 100 - custWidthPct;
+  }
+
+  const CUSTOM_COLOR  = '#16a34a';   // green
+  const DEFAULT_COLOR = '#7a90a8';   // slate grey
+
+  function renderZoneTiles(list, zoneTotal, zoneColor) {
+    if (!zoneTotal) return '';
+    return list.map(({ svc, count }) => {
+      const share = count / zoneTotal;
+      // flex-grow proportional to share; min-width ensures tiny tiles stay readable
+      const flexGrow = Math.max(share * 100, 6);
+      const minWidth = count > 0 ? 64 : 0;
+      // Variable opacity so larger contributions stand out within the zone.
+      const opacity = (0.55 + share * 0.45).toFixed(2);
+      const safe = escapeHtml(svc);
+      const fontPx = count >= 10 ? 12 : 11;
+      const numPx  = count >= 10 ? 14 : 13;
+      const pct = (share * 100).toFixed(1);
+      return `<div
+        title="${safe}: ${count} resource(s) — ${pct}% of this zone"
+        onclick="_applyServiceFilterFromChart('${safe}')"
+        style="
+          flex:${flexGrow.toFixed(2)} 1 0;
+          min-width:${minWidth}px;
+          background:${zoneColor};
+          opacity:${opacity};
+          border-radius:4px;
+          color:#fff;
+          display:flex;flex-direction:column;align-items:center;justify-content:center;
+          padding:6px 4px;text-align:center;overflow:hidden;
+          cursor:pointer;transition:opacity 0.15s,transform 0.1s;
+          font-weight:600;
+        "
+        onmouseenter="this.style.opacity='1';this.style.transform='scale(1.02)'"
+        onmouseleave="this.style.opacity='${opacity}';this.style.transform='scale(1)'"
+      >
+        <span style="font-size:${fontPx}px;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%">${safe.toUpperCase()}</span>
+        <span style="font-size:${numPx}px;font-weight:700;margin-top:3px">${count}</span>
+      </div>`;
+    }).join('');
+  }
+
+  const customZoneHtml = `
+    <div style="display:flex;flex-direction:column;flex:0 0 calc(${custWidthPct}% - 4px);min-width:0">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:0 2px 6px;font-size:10.5px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:var(--text-muted)">
+        <span style="display:flex;align-items:center;gap:6px">
+          <span style="width:9px;height:9px;border-radius:2px;background:${CUSTOM_COLOR}"></span>
+          ${(typeof t === 'function' && t('mapinv_custom')) || 'Custom'}
+        </span>
+        <span style="font-variant-numeric:tabular-nums;color:var(--text-secondary)">${totalCust} · ${(customShare*100).toFixed(0)}%</span>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:4px;flex:1;align-content:stretch">
+        ${renderZoneTiles(customList, totalCust, CUSTOM_COLOR) || ''}
+      </div>
+    </div>
+  `;
+
+  const defaultZoneHtml = `
+    <div style="display:flex;flex-direction:column;flex:0 0 calc(${defWidthPct}% - 4px);min-width:0">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:0 2px 6px;font-size:10.5px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:var(--text-muted)">
+        <span style="display:flex;align-items:center;gap:6px">
+          <span style="width:9px;height:9px;border-radius:2px;background:${DEFAULT_COLOR}"></span>
+          ${(typeof t === 'function' && t('mapinv_default')) || 'Default'}
+        </span>
+        <span style="font-variant-numeric:tabular-nums;color:var(--text-secondary)">${totalDef} · ${(defaultShare*100).toFixed(0)}%</span>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:4px;flex:1;align-content:stretch">
+        ${renderZoneTiles(defaultList, totalDef, DEFAULT_COLOR) || ''}
+      </div>
+    </div>
+  `;
+
+  // When a service filter is active, the chart shows only that service's
+  // resources. Prepend a "Back to all services" button so the user can
+  // return to the global view without hunting for the filter dropdown.
+  const isFiltered = !!(_filterSelected && _filterSelected.service && _filterSelected.service.size > 0);
+  const activeSvc = isFiltered ? [..._filterSelected.service].join(', ').toUpperCase() : '';
+  const backBarHtml = isFiltered ? `
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:4px 2px 8px;font-size:11px">
+      <button type="button" onclick="_clearServiceFilterFromChart()"
+              style="display:flex;align-items:center;gap:5px;background:transparent;border:1px solid var(--border-light);color:var(--text-secondary);padding:4px 10px;border-radius:14px;cursor:pointer;font-size:11px;font-weight:600;letter-spacing:.3px"
+              onmouseenter="this.style.background='var(--bg-card-hover)';this.style.color='var(--text-primary)'"
+              onmouseleave="this.style.background='transparent';this.style.color='var(--text-secondary)'"
+              title="Show all services">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        <span>${(typeof t === 'function' && t('mapinv_back_all')) || 'Back to all services'}</span>
+      </button>
+      <span style="color:var(--text-muted);font-variant-numeric:tabular-nums">
+        ${(typeof t === 'function' && t('mapinv_filtered_to')) || 'Filtered to'}: <strong style="color:var(--accent)">${escapeHtml(activeSvc)}</strong>
+      </span>
+    </div>
+  ` : '';
+
+  wrap.innerHTML = `
+    ${backBarHtml}
+    <div style="display:flex;gap:8px;flex:1;min-height:0">
+      ${totalCust > 0 ? customZoneHtml : ''}
+      ${totalDef  > 0 ? defaultZoneHtml : ''}
+    </div>
+  `;
+}
+
+// Clear the service filter that was applied via a tile click. Mirrors
+// _applyServiceFilterFromChart in reverse: empty the Set, untick checkboxes,
+// re-run the filter pipeline.
+function _clearServiceFilterFromChart() {
+  if (!_filterSelected || !_filterSelected.service) return;
+  _filterSelected.service.clear();
+  if (typeof updateFilterLabel === 'function') updateFilterLabel('service');
+  const list = document.getElementById('filterServiceList');
+  if (list) {
+    list.querySelectorAll('input[type=checkbox]').forEach(cb => { cb.checked = false; });
+  }
+  if (typeof applyFilters === 'function') applyFilters();
+}
+
+// Helper used by the Default-vs-Custom chart: programmatically apply the
+// service filter, sync the dropdown checkboxes, and refresh the listing.
+function _applyServiceFilterFromChart(svc) {
+  if (!_filterSelected || !_filterSelected.service) return;
+  _filterSelected.service = new Set([svc]);
+  if (typeof updateFilterLabel === 'function') updateFilterLabel('service');
+  // Sync the dropdown checkboxes if it's already been rendered.
+  const list = document.getElementById('filterServiceList');
+  if (list) {
+    list.querySelectorAll('input[type=checkbox]').forEach(cb => {
+      cb.checked = (cb.value === svc);
     });
   }
+  if (typeof applyFilters === 'function') applyFilters();
+  // Scroll to the Services table for visual feedback.
+  document.getElementById('serviceTableSection')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 // ---------------------------------------------------------------------------
@@ -1490,6 +1651,111 @@ document.addEventListener('click', (e) => {
   }
 });
 
+// ---------------------------------------------------------------------------
+// CSV export — Services table (bulk) + per-service detail
+// ---------------------------------------------------------------------------
+
+function _csvEscape(val) {
+  // RFC-4180 minimum: wrap in quotes if value contains comma / quote / newline,
+  // and double up any embedded quotes. Null/undefined → empty.
+  if (val == null) return '';
+  if (typeof val === 'object') {
+    try { val = JSON.stringify(val); } catch (_) { val = String(val); }
+  }
+  const s = String(val);
+  if (/[",\n\r]/.test(s)) {
+    return '"' + s.replace(/"/g, '""') + '"';
+  }
+  return s;
+}
+
+function _csvLine(values) {
+  return values.map(_csvEscape).join(',');
+}
+
+function _downloadCsv(filename, csvText) {
+  // Prepend UTF-8 BOM so Excel opens TR characters correctly without manual import.
+  const blob = new Blob(['﻿', csvText], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  // Revoke after a tick to ensure the download started.
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function _exportFilenameStem() {
+  const profile = (_activeProfile || 'profile').replace(/[^\w.-]+/g, '_');
+  const ts = new Date().toISOString().replace(/[-:]/g, '').replace(/\..+$/, ''); // YYYYMMDDTHHMMSS
+  return `mapinventory_${profile}_${ts}`;
+}
+
+// Bulk export — every resource on the active profile, generic schema. Per-service
+// fields are folded into the `details` column as JSON so no information is lost
+// even when services have heterogeneous columns.
+function exportAllServicesCsv() {
+  if (!_allResources || _allResources.length === 0) {
+    alert((typeof t === 'function' && t('mapinv_export_empty')) ||
+          'No inventory data to export. Run a scan first.');
+    return;
+  }
+  const header = ['service', 'type', 'name', 'id', 'region', 'account_id', 'details_json'];
+  const lines = [_csvLine(header)];
+  for (const r of _allResources) {
+    lines.push(_csvLine([
+      r.service || '',
+      r.type    || '',
+      r.name    || '',
+      r.id      || '',
+      r.region  || '',
+      r.account_id || '',
+      r.details || {},
+    ]));
+  }
+  _downloadCsv(`${_exportFilenameStem()}_all.csv`, lines.join('\r\n'));
+}
+
+// Per-service export — uses the current `_detailCols` so the CSV matches the
+// service-specific columns the user is looking at. Exports the FILTERED set if
+// any filter is active, otherwise the full service resource list.
+function exportServiceDetailCsv() {
+  const svc = _detailService;
+  if (!svc) return;
+  const resources = (_detailFiltered && _detailFiltered.length)
+    ? _detailFiltered
+    : _detailResources || [];
+  if (resources.length === 0) {
+    alert((typeof t === 'function' && t('mapinv_export_empty')) ||
+          'No rows to export.');
+    return;
+  }
+  const cols = _detailCols && _detailCols.length ? _detailCols : getServiceColumns(svc);
+  // Expand each UI column into one or two CSV columns. When a column declares
+  // `csvHumanGetter`, we emit its raw value followed by a friendly companion
+  // column (e.g. "Size" bytes + "Size (human)" -> "22 TB").
+  const csvCols = [];
+  for (const c of cols) {
+    const rawFn = c.rawGetter || c.getter;
+    csvCols.push({ label: c.label, fn: rawFn });
+    if (c.csvHumanGetter) {
+      csvCols.push({ label: c.csvHumanLabel || `${c.label} (human)`, fn: c.csvHumanGetter });
+    }
+  }
+  const header = csvCols.map(c => c.label);
+  const lines = [_csvLine(header)];
+  for (const r of resources) {
+    lines.push(_csvLine(csvCols.map(c => {
+      try { return c.fn ? c.fn(r) : ''; } catch (_) { return ''; }
+    })));
+  }
+  _downloadCsv(`${_exportFilenameStem()}_${svc}.csv`, lines.join('\r\n'));
+}
+
+
 function getServiceColumns(service) {
   const base = [
     { label: 'Type', getter: r => r.type, rawGetter: r => r.type },
@@ -1520,7 +1786,14 @@ const SERVICE_DETAIL_COLS = {
     { label: 'Public Block', getter: r => r.details?.public_access_blocked, rawGetter: r => r.details?.public_access_blocked },
     { label: 'Policy', getter: r => r.details?.has_policy ? 'Yes' : 'No', rawGetter: r => r.details?.has_policy },
     { label: 'Logging', getter: r => r.details?.logging_target || '—', rawGetter: r => r.details?.logging_target },
-    { label: 'Size', sortKey: 'size_bytes', getter: r => r.details?.size_bytes != null ? formatBytes(r.details.size_bytes) : '—', rawGetter: r => r.details?.size_bytes },
+    { label: 'Size', sortKey: 'size_bytes',
+      getter: r => r.details?.size_bytes != null ? formatBytes(r.details.size_bytes) : '—',
+      rawGetter: r => r.details?.size_bytes,
+      // CSV-only: emit an additional 'Size (human)' column right after the
+      // raw byte column so analysts get both machine-readable and the
+      // MB/GB/TB representation in the same export.
+      csvHumanLabel: 'Size (human)',
+      csvHumanGetter: r => r.details?.size_bytes != null ? formatBytes(r.details.size_bytes) : '' },
     { label: 'Objects', getter: r => r.details?.object_count != null ? formatNum(r.details.object_count) : '—', rawGetter: r => r.details?.object_count },
   ],
   ec2: [

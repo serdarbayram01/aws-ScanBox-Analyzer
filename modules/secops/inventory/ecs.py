@@ -44,7 +44,8 @@ def run_checks(session, exclude_defaults=False, regions=None):
                         severity='LOW', status='PASS' if insights_on else 'FAIL',
                         service=SERVICE, resource_id=carn,
                         resource_type='AWS::ECS::Cluster', region=region,
-                        frameworks={'WAFR': {'pillar': 'Operational Excellence', 'controls': ['OPS07']}},
+                        frameworks={
+                                    'SOC2': ['CC6.6'],'WAFR': {'pillar': 'Operational Excellence', 'controls': ['OPS07']}},
                         remediation=f'ECS Console → {cname} → Update cluster → Container Insights → Enabled.',
                         remediation_tr=f'ECS Konsol → {cname} → Kümeyi güncelle → Container Insights → Etkinleştir.',
                     ))
@@ -87,6 +88,7 @@ def run_checks(session, exclude_defaults=False, regions=None):
                                 service=SERVICE, resource_id=td_arn,
                                 resource_type='AWS::ECS::TaskDefinition', region=region,
                                 frameworks={
+                                            'SOC2': ['CC6.3'],
                                     'CIS': ['5.4'], 'ISO27001': ['A.12.6.1'],
                                     'WAFR': {'pillar': 'Security', 'controls': ['SEC05']},
                                 },
@@ -110,6 +112,7 @@ def run_checks(session, exclude_defaults=False, regions=None):
                                     service=SERVICE, resource_id=td_arn,
                                     resource_type='AWS::ECS::TaskDefinition', region=region,
                                     frameworks={
+                                                'SOC2': ['CC6.6'],
                                         'CIS': ['5.4'], 'HIPAA': ['164.312(a)(2)(iv)'],
                                         'ISO27001': ['A.9.4.3'],
                                         'WAFR': {'pillar': 'Security', 'controls': ['SEC07']},

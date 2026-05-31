@@ -14,9 +14,11 @@ from .inventory import (
     iam, s3, ec2, vpc, cloudtrail, guardduty, rds, kms, lambda_, config_,
     secretsmanager, dynamodb, sqs, sns, ecs, elb, eks, cloudfront,
     cloudwatch, waf, route53, acm, ecr, efs,
+    backup, inspector, macie, opensearch, elasticache,
 )
 from .inventory.base import make_finding
 from . import cache
+from .frameworks import soc2_catalog
 
 # Module-level scan progress tracker, keyed by profile name
 _scan_progress = {}
@@ -37,6 +39,10 @@ FRAMEWORKS = {
     'CIS':     {'label': 'CIS AWS Foundations Benchmark v3'},
     'HIPAA':   {'label': 'HIPAA Security Rule'},
     'ISO27001':{'label': 'ISO/IEC 27001:2022'},
+    'SOC2': {
+        'label': 'SOC2 Type II (TSC 2017/2022)',
+        'pillars': soc2_catalog.SOC2_PILLARS,
+    },
 }
 
 # All services that have dedicated check modules
@@ -45,6 +51,7 @@ SERVICES_ORDER = [
     'Lambda', 'Config', 'SecretsManager', 'DynamoDB', 'SQS', 'SNS',
     'ECS', 'EKS', 'ELB', 'CloudFront',
     'CloudWatch', 'WAF', 'Route53', 'ACM', 'ECR', 'EFS',
+    'Backup', 'Inspector', 'Macie', 'OpenSearch', 'ElastiCache',
 ]
 
 # Severity weights for weighted risk score (CRITICAL counts 10×, INFO counts 1×)
@@ -188,6 +195,11 @@ _MODULE_TO_CE_PATTERNS = {
     'ACM':            ['AWS Certificate Manager'],
     'ECR':            ['Elastic Container Registry'],
     'EFS':            ['Elastic File System'],
+    'Backup':         ['AWS Backup'],
+    'Inspector':      ['Amazon Inspector'],
+    'Macie':          ['Amazon Macie'],
+    'OpenSearch':     ['Amazon OpenSearch', 'Amazon Elasticsearch'],
+    'ElastiCache':    ['Amazon ElastiCache'],
 }
 
 
@@ -258,6 +270,11 @@ def run_scan(profile: str, exclude_defaults: bool = False, regions: list = None)
             ('ACM',            acm.run_checks),
             ('ECR',            ecr.run_checks),
             ('EFS',            efs.run_checks),
+            ('Backup',         backup.run_checks),
+            ('Inspector',      inspector.run_checks),
+            ('Macie',          macie.run_checks),
+            ('OpenSearch',     opensearch.run_checks),
+            ('ElastiCache',    elasticache.run_checks),
         ]
 
         # Filter: core services always run, optional services only if active in CE
@@ -317,6 +334,18 @@ def run_scan(profile: str, exclude_defaults: bool = False, regions: list = None)
             ce_executor.shutdown(wait=False)
 
         elapsed = round(time.time() - started, 1)
+
+        # Compare against previous scan to compute per-finding delta
+        # ('new' / 'fixed' / 'regression' / 'persisting'). Done BEFORE
+        # save_scan so we read the *previous* scan as the baseline.
+        prev_results, _prev_age = cache.load_scan(profile)
+        all_findings = _compute_deltas(all_findings, prev_results)
+
+        # Apply user-defined suppressions (accepted-risk / false-positive).
+        # This mutates status to 'SUPPRESSED' and attaches suppression
+        # metadata; aggregation excludes SUPPRESSED from scoring denominators.
+        suppressions = cache.load_suppressions(profile)
+        all_findings = _apply_suppressions(all_findings, suppressions)
 
         results = _aggregate(all_findings, errors, profile, account_id,
                              exclude_defaults, elapsed, skipped)
@@ -466,6 +495,64 @@ def _get_unchecked_ce_services(session, account_id: str) -> list:
 
 
 # ---------------------------------------------------------------------------
+# Suppressions & Finding Delta
+# ---------------------------------------------------------------------------
+
+def _apply_suppressions(findings: list, suppressions: list) -> list:
+    """Override status to 'SUPPRESSED' for findings matched by ID. Aggregation
+    later excludes SUPPRESSED from score/coverage denominators so the user is
+    not penalised for accepted-risk findings."""
+    if not suppressions:
+        return findings
+    by_id = {s.get('finding_id'): s for s in suppressions if s.get('finding_id')}
+    if not by_id:
+        return findings
+    for f in findings:
+        sup = by_id.get(f.get('id'))
+        if sup is None:
+            continue
+        # Only affect actionable statuses; never override NOT_AVAILABLE or MANUAL
+        if f.get('status') in ('PASS', 'FAIL', 'WARNING'):
+            f['suppression'] = {
+                'reason':       sup.get('reason', ''),
+                'user':         sup.get('user', ''),
+                'created_at':   sup.get('created_at', ''),
+                'prior_status': f.get('status'),
+            }
+            f['status'] = 'SUPPRESSED'
+    return findings
+
+
+def _compute_deltas(findings: list, prev_results: dict | None) -> list:
+    """Tag each finding with a delta vs the most recent previous scan:
+    - 'new'        — finding id absent from previous scan
+    - 'fixed'      — was FAIL/WARNING, now PASS
+    - 'regression' — was PASS, now FAIL/WARNING
+    - 'persisting' — same status (or other transitions)
+    Findings only present in the prior scan (i.e. fully removed) are NOT
+    re-emitted; that information is available in the trend/history charts."""
+    prev_by_id = {}
+    if prev_results and isinstance(prev_results, dict):
+        for pf in prev_results.get('findings', []) or []:
+            pid = pf.get('id')
+            if pid:
+                prev_by_id[pid] = pf.get('status')
+
+    for f in findings:
+        prev_status = prev_by_id.get(f.get('id'))
+        cur_status  = f.get('status')
+        if prev_status is None:
+            f['delta'] = 'new' if prev_results else None
+        elif prev_status in ('FAIL', 'WARNING') and cur_status == 'PASS':
+            f['delta'] = 'fixed'
+        elif prev_status == 'PASS' and cur_status in ('FAIL', 'WARNING'):
+            f['delta'] = 'regression'
+        else:
+            f['delta'] = 'persisting'
+    return findings
+
+
+# ---------------------------------------------------------------------------
 # Aggregation
 # ---------------------------------------------------------------------------
 
@@ -478,24 +565,31 @@ def _aggregate(findings, errors, profile, account_id,
 
     # Overall severity counts
     sev_counts = {'CRITICAL': 0, 'HIGH': 0, 'MEDIUM': 0, 'LOW': 0, 'INFO': 0}
-    status_counts = {'PASS': 0, 'FAIL': 0, 'WARNING': 0, 'NOT_AVAILABLE': 0, 'MANUAL': 0}
+    status_counts = {'PASS': 0, 'FAIL': 0, 'WARNING': 0,
+                     'NOT_AVAILABLE': 0, 'MANUAL': 0, 'SUPPRESSED': 0}
+    delta_counts = {'new': 0, 'fixed': 0, 'regression': 0, 'persisting': 0}
     for f in visible:
         sev = f.get('severity', 'INFO')
         st  = f.get('status',   'NOT_AVAILABLE')
         if sev in sev_counts:   sev_counts[sev] += 1
         if st  in status_counts: status_counts[st] += 1
+        d = f.get('delta')
+        if d in delta_counts:
+            delta_counts[d] += 1
 
     total    = len(visible)
     passed   = status_counts['PASS']
-    # WARNING counts as 0.5 failure in base score (less severe than FAIL)
+    # WARNING counts as 0.5 failure in base score (less severe than FAIL).
+    # SUPPRESSED is excluded from the denominator entirely (accepted risk).
     effective_denom = status_counts['PASS'] + status_counts['FAIL'] + status_counts['WARNING'] * 0.5
     score    = round(passed / effective_denom * 100, 1) if effective_denom else 0
     score    = min(score, 100.0)  # cap at 100
     weighted_score = _weighted_score(visible)
 
-    # Coverage score: % of checked services vs total active (including MANUAL)
+    # Coverage score: % of checked services vs total active (including MANUAL).
+    # SUPPRESSED counts as 'checked' — the check ran, the user accepted the risk.
     checked_svcs = {f.get('service') for f in visible
-                    if f.get('status') in ('PASS', 'FAIL', 'WARNING')}
+                    if f.get('status') in ('PASS', 'FAIL', 'WARNING', 'SUPPRESSED')}
     manual_svcs  = {f.get('service') for f in visible if f.get('status') == 'MANUAL'}
     all_active   = checked_svcs | manual_svcs
     coverage_score = round(len(checked_svcs) / len(all_active) * 100, 1) if all_active else 100
@@ -532,7 +626,9 @@ def _aggregate(findings, errors, profile, account_id,
             'warnings':       status_counts['WARNING'],
             'not_available':  status_counts['NOT_AVAILABLE'],
             'manual':         status_counts['MANUAL'],
+            'suppressed':     status_counts['SUPPRESSED'],
             'severity':       sev_counts,
+            'deltas':         delta_counts,
         },
         'frameworks':      framework_scores,
         'services':        service_scores,
@@ -561,48 +657,105 @@ def _weighted_score(findings):
     return round(w_pass / w_total * 100, 1) if w_total else 0
 
 
+def _accumulate_pillar(pillar_data, pillar, status, weight):
+    """Add a finding's status & weight to a pillar's tally (helper for WAFR/SOC2)."""
+    if pillar not in pillar_data:
+        return
+    d = pillar_data[pillar]
+    d['total'] += 1
+    d['w_total'] += weight
+    if status == 'PASS':
+        d['pass'] += 1
+        d['w_pass'] += weight
+    elif status == 'FAIL':
+        d['fail'] += 1
+    elif status == 'WARNING':
+        d['fail'] += 1
+        d['w_total'] -= weight * 0.5  # WARNING counts half (subtract back half)
+
+
+def _finalise_pillars(pillar_data):
+    """Compute pass/total + severity-weighted score per pillar."""
+    for d in pillar_data.values():
+        d['score'] = round(d['w_pass'] / d['w_total'] * 100, 1) if d['w_total'] else 0
+        # remove internal weight bookkeeping from output
+        d.pop('w_pass', None)
+        d.pop('w_total', None)
+
+
 def _score_frameworks(findings):
+    """Per-framework severity-weighted scores. WAFR + SOC2 also produce pillar
+    drill-down. Score formula matches the global Weighted Score (CRITICAL=10,
+    HIGH=7, MEDIUM=4, LOW=2, INFO=1; WARNING counts as half-fail)."""
     scores = {}
     for fw_key, fw_meta in FRAMEWORKS.items():
-        if fw_key == 'WAFR':
-            pillar_data = {p: {'pass': 0, 'fail': 0, 'total': 0}
+        # Frameworks with pillar drill-down (WAFR uses nested {pillar, controls};
+        # SOC2 uses flat list — pillar derived from control ID prefix).
+        if fw_key in ('WAFR', 'SOC2'):
+            pillar_data = {p: {'pass': 0, 'fail': 0, 'total': 0,
+                               'w_pass': 0.0, 'w_total': 0.0}
                            for p in fw_meta['pillars']}
+            w_pass_total = w_total_total = 0.0
+            p_total = t_total = 0
             for f in findings:
-                wafr = f.get('frameworks', {}).get('WAFR', {})
-                if not wafr:
-                    continue
-                pillar = wafr.get('pillar', '')
-                if pillar not in pillar_data:
+                fw_entry = f.get('frameworks', {}).get(fw_key)
+                if not fw_entry:
                     continue
                 st = f.get('status')
-                pillar_data[pillar]['total'] += 1
+                if st not in ('PASS', 'FAIL', 'WARNING'):
+                    continue
+                w = SEV_WEIGHTS.get(f.get('severity', 'INFO'), 1)
+
+                if fw_key == 'WAFR':
+                    pillars_for_finding = [fw_entry.get('pillar', '')] if isinstance(fw_entry, dict) else []
+                else:  # SOC2 — flat list of control IDs, derive pillars
+                    pillars_for_finding = list({soc2_catalog.pillar_for(cid)
+                                                for cid in (fw_entry or [])
+                                                if soc2_catalog.pillar_for(cid)})
+
+                # A finding is counted ONCE in the overall score regardless of
+                # how many pillars it touches; the per-pillar tally may
+                # double-count when a SOC2 finding spans pillars.
+                t_total += 1
+                w_total_total += w * (0.5 if st == 'WARNING' else 1)
                 if st == 'PASS':
-                    pillar_data[pillar]['pass'] += 1
-                elif st in ('FAIL', 'WARNING'):
-                    pillar_data[pillar]['fail'] += 1
+                    p_total += 1
+                    w_pass_total += w
 
-            for p, d in pillar_data.items():
-                d['score'] = round(d['pass'] / d['total'] * 100, 1) if d['total'] else 0
+                for pillar in pillars_for_finding:
+                    _accumulate_pillar(pillar_data, pillar, st, w)
 
-            total_p = sum(d['pass']  for d in pillar_data.values())
-            total_t = sum(d['total'] for d in pillar_data.values())
-            scores['WAFR'] = {
+            _finalise_pillars(pillar_data)
+            scores[fw_key] = {
                 'label':  fw_meta['label'],
-                'score':  round(total_p / total_t * 100, 1) if total_t else 0,
-                'pass':   total_p,
-                'total':  total_t,
-                'pillars':pillar_data,
+                'score':  round(w_pass_total / w_total_total * 100, 1) if w_total_total else 0,
+                'pass':   p_total,
+                'total':  t_total,
+                'pillars': pillar_data,
             }
         else:
+            # Flat frameworks (CIS, HIPAA, ISO27001) — severity-weighted score
             p_count = t_count = 0
+            w_pass = w_total = 0.0
             for f in findings:
-                if fw_key in f.get('frameworks', {}):
-                    t_count += 1
-                    if f.get('status') == 'PASS':
-                        p_count += 1
+                if fw_key not in f.get('frameworks', {}):
+                    continue
+                st = f.get('status')
+                if st not in ('PASS', 'FAIL', 'WARNING'):
+                    continue
+                w = SEV_WEIGHTS.get(f.get('severity', 'INFO'), 1)
+                t_count += 1
+                if st == 'PASS':
+                    p_count += 1
+                    w_pass += w
+                    w_total += w
+                elif st == 'FAIL':
+                    w_total += w
+                elif st == 'WARNING':
+                    w_total += w * 0.5
             scores[fw_key] = {
                 'label': fw_meta['label'],
-                'score': round(p_count / t_count * 100, 1) if t_count else 0,
+                'score': round(w_pass / w_total * 100, 1) if w_total else 0,
                 'pass':  p_count,
                 'total': t_count,
             }
@@ -611,7 +764,7 @@ def _score_frameworks(findings):
 
 def _score_services(findings):
     """Build service scores dynamically from findings (not from a fixed list).
-    Score = PASS / (PASS + FAIL + WARNING) — excludes MANUAL/NOT_AVAILABLE from denominator.
+    Score = PASS / (PASS + FAIL + WARNING) — excludes MANUAL/NOT_AVAILABLE/SUPPRESSED from denominator.
     """
     service_data = {}
     for f in findings:
@@ -621,7 +774,8 @@ def _score_services(findings):
         if svc not in service_data:
             service_data[svc] = {
                 'pass': 0, 'fail': 0, 'warning': 0,
-                'not_available': 0, 'manual': 0, 'total': 0, 'score': 0,
+                'not_available': 0, 'manual': 0, 'suppressed': 0,
+                'total': 0, 'score': 0,
             }
         service_data[svc]['total'] += 1
         st = f.get('status')
@@ -635,9 +789,11 @@ def _score_services(findings):
             service_data[svc]['not_available'] += 1
         elif st == 'MANUAL':
             service_data[svc]['manual'] += 1
+        elif st == 'SUPPRESSED':
+            service_data[svc]['suppressed'] += 1
 
     for svc, d in service_data.items():
-        # Only score against actionable checks (exclude MANUAL + NOT_AVAILABLE)
+        # Only score against actionable checks (exclude MANUAL + NOT_AVAILABLE + SUPPRESSED)
         actionable = d['pass'] + d['fail'] + d['warning']
         d['score'] = round(d['pass'] / actionable * 100, 1) if actionable else 0
 

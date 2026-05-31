@@ -1219,6 +1219,75 @@ COST_ADVICE_TEMPLATES = {
         'recommendation_en': 'Define a clear region strategy aligned with latency requirements and data residency regulations. Consolidate non-essential resources to primary region.',
         'recommendation_tr': 'Gecikme gereksinimleri ve veri ikamet duzenlemeleriyle uyumlu net bir bolge stratejisi tanimlanmalidir. Temel olmayan kaynaklar birincil bolgeye konsolide edilmelidir.',
     },
+
+    # ---------------------------------------------------------------------
+    # Data-driven cost templates — finding text uses .format(**details);
+    # severity is set dynamically by advisor_engine based on $/count thresholds.
+    # ---------------------------------------------------------------------
+    'unattached_ebs': {
+        'wafr': ['COST04'],
+        'risk': 'MEDIUM',
+        'finding_en': 'Found {count} unattached EBS volumes wasting ~${monthly_cost:.2f}/month.',
+        'finding_tr': '{count} bagsiz EBS volume tespit edildi; aylik ~${monthly_cost:.2f} bos yere harcaniyor.',
+        'recommendation_en': 'Snapshot if needed, then delete via EC2 Console → Volumes → State: available. Many of these are leftovers from terminated instances.',
+        'recommendation_tr': 'Gerekirse snapshot alin, ardindan EC2 Konsolu → Volumes → State: available menusunden silin. Bunlarin cogu sonlandirilmis instance\'lardan kalanlardir.',
+    },
+    'unassociated_eips': {
+        'wafr': ['COST04'],
+        'risk': 'MEDIUM',
+        'finding_en': '{count} Elastic IP(s) not attached to any instance — ${monthly_cost:.2f}/month wasted ($3.65/EIP).',
+        'finding_tr': 'Hicbir instance\'a bagli olmayan {count} Elastic IP — aylik ${monthly_cost:.2f} bosa gidiyor (EIP basina $3.65).',
+        'recommendation_en': 'Release unused EIPs via EC2 → Elastic IPs → Actions → Release. Re-allocate when needed (allocation is free).',
+        'recommendation_tr': 'Kullanilmayan EIP\'leri EC2 → Elastic IPs → Actions → Release uzerinden serbest birakin. Gerektiginde yeniden tahsis edilebilir (tahsis ucretsiz).',
+    },
+    'stopped_ec2_long': {
+        'wafr': ['COST04'],
+        'risk': 'MEDIUM',
+        'finding_en': '{count} EC2 instance(s) stopped for >30 days. Attached EBS volumes still bill — ${monthly_cost:.2f}/month.',
+        'finding_tr': '30 gunden uzun suredir kapali {count} EC2 instance. Bagli EBS volume\'leri faturalanmaya devam ediyor — aylik ${monthly_cost:.2f}.',
+        'recommendation_en': 'Snapshot the EBS volumes if data is needed for archive, then terminate the instances. Stopped state does not stop EBS billing.',
+        'recommendation_tr': 'Veri arsivlenecekse EBS snapshot alin, ardindan instance\'lari terminate edin. Stopped durumu EBS faturalandirmasini durdurmaz.',
+    },
+    'idle_nat_gateways': {
+        'wafr': ['COST04', 'COST07'],
+        'risk': 'HIGH',
+        'finding_en': '{count} idle NAT Gateway(s) (<1GB outbound in last 14 days) — ${monthly_cost:.2f}/month at ~$32 each.',
+        'finding_tr': '{count} bos NAT Gateway (son 14 gunde <1GB cikis trafigi) — aylik ${monthly_cost:.2f}, her biri ~$32.',
+        'recommendation_en': 'Delete unused NAT Gateways. For occasional NAT, consider replacing with NAT Instance (cheaper) or VPC Endpoints for AWS service traffic.',
+        'recommendation_tr': 'Kullanilmayan NAT Gateway\'leri silin. Nadiren NAT gerektiginde NAT Instance (daha ucuz) veya AWS servis trafigi icin VPC Endpoint\'leri degerlendirin.',
+    },
+    'empty_load_balancers': {
+        'wafr': ['COST04'],
+        'risk': 'MEDIUM',
+        'finding_en': '{count} load balancer(s) have no healthy targets — ${monthly_cost:.2f}/month.',
+        'finding_tr': '{count} yuk dengeleyicide saglikli hedef yok — aylik ${monthly_cost:.2f}.',
+        'recommendation_en': 'Delete the LB or attach valid targets. Each idle ALB/NLB costs ~$16/month plus LCU charges even with zero traffic.',
+        'recommendation_tr': 'LB\'yi silin veya gecerli hedefler ekleyin. Her bos ALB/NLB sifir trafikte bile aylik ~$16 + LCU ucreti getirir.',
+    },
+    'orphan_rds_snapshots': {
+        'wafr': ['COST04'],
+        'risk': 'LOW',
+        'finding_en': '{count} manual RDS snapshot(s) whose source DB no longer exists — ${monthly_cost:.2f}/month.',
+        'finding_tr': 'Kaynak DB\'si artik bulunmayan {count} manuel RDS snapshot — aylik ${monthly_cost:.2f}.',
+        'recommendation_en': 'Audit and delete obsolete snapshots via RDS → Snapshots. Set a retention policy via AWS Backup or lifecycle scripts.',
+        'recommendation_tr': 'RDS → Snapshots uzerinden eski snapshot\'lari gozden gecirip silin. AWS Backup veya yasam dongusu scriptleriyle saklama politikasi tanimlayin.',
+    },
+    'underutilized_ec2_cpu': {
+        'wafr': ['COST05'],
+        'risk': 'HIGH',
+        'finding_en': '{count} running EC2 instance(s) with median CPU < {threshold:.0f}% over {days} days. Right-sizing or termination indicated.',
+        'finding_tr': 'Son {days} gunde medyan CPU < %{threshold:.0f} olan {count} calisan EC2 instance. Right-sizing veya kapatma onerilir.',
+        'recommendation_en': 'Review CloudWatch CPU/memory/network metrics; either downsize to a smaller instance family or terminate if unused. Consider Compute Optimizer for sizing recommendations.',
+        'recommendation_tr': 'CloudWatch CPU/bellek/ag metriklerini inceleyin; daha kucuk bir instance ailesine kucultun veya kullanilmiyorsa terminate edin. Boyutlandirma onerileri icin Compute Optimizer degerlendirilebilir.',
+    },
+    'tag_governance': {
+        'wafr': ['COST02'],
+        'risk': 'MEDIUM',
+        'finding_en': 'Only {tagged_pct:.0f}% of {total_resources} resources carry all required tags ({required_tags}). Cost allocation and ownership tracking are limited.',
+        'finding_tr': '{total_resources} kaynaktan yalnizca %{tagged_pct:.0f} tum gerekli etiketleri tasiyor ({required_tags}). Maliyet tahsisi ve sahiplenme takibi sinirli.',
+        'recommendation_en': 'Define an organization-wide tagging policy. Use AWS Organizations Tag Policies to enforce required keys (e.g. Owner, Environment, CostCenter). Backfill missing tags via Resource Groups Tagging API.',
+        'recommendation_tr': 'Kurum capinda bir etiketleme politikasi tanimlayin. Gerekli anahtarlari (Owner, Environment, CostCenter gibi) zorlamak icin AWS Organizations Tag Policies kullanin. Eksik etiketleri Resource Groups Tagging API ile geriye doldurun.',
+    },
 }
 
 # ---------------------------------------------------------------------------

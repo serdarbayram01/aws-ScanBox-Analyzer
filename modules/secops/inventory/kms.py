@@ -33,7 +33,8 @@ def run_checks(session, exclude_defaults=False, regions=None):
                                 severity='HIGH', status='WARNING',
                                 service=SERVICE, resource_id=kid,
                                 resource_type='AWS::KMS::Key', region=region,
-                                frameworks={'CIS': ['3.8'], 'HIPAA': ['164.312(a)(2)(iv)'],
+                                frameworks={
+                                            'SOC2': ['CC6.7'],'CIS': ['3.8'], 'HIPAA': ['164.312(a)(2)(iv)'],
                                             'ISO27001': ['A.10.1.2'],
                                             'WAFR': {'pillar': 'Security', 'controls': ['SEC06']}},
                                 remediation='Cancel key deletion if the key is still needed.',
@@ -58,12 +59,56 @@ def run_checks(session, exclude_defaults=False, regions=None):
                             severity='MEDIUM', status='PASS' if rotation else 'FAIL',
                             service=SERVICE, resource_id=kid,
                             resource_type='AWS::KMS::Key', region=region,
-                            frameworks={'CIS': ['3.8'], 'HIPAA': ['164.312(a)(2)(iv)'],
+                            frameworks={
+                                        'SOC2': ['CC6.7', 'C1.2'],'CIS': ['3.8'], 'HIPAA': ['164.312(a)(2)(iv)'],
                                         'ISO27001': ['A.10.1.2'],
                                         'WAFR': {'pillar': 'Security', 'controls': ['SEC06']}},
                             remediation=f'KMS Console → {kid} → Key rotation → Enable.',
                             remediation_tr=f'KMS Konsol → {kid} → Anahtar rotasyonu → Etkinleştir.',
                         ))
+
+                        # Multi-region keys: when present, audit propagation
+                        # status. MRK primary keys carry replica information.
+                        if meta.get('MultiRegion'):
+                            mr_cfg = meta.get('MultiRegionConfiguration', {}) or {}
+                            role = mr_cfg.get('MultiRegionKeyType', 'unknown')  # PRIMARY|REPLICA
+                            replicas = [r.get('Region') for r in mr_cfg.get('ReplicaKeys', []) if r.get('Region')]
+                            findings.append(make_finding(
+                                id=f'kms_multi_region_key_{kid}_{region}',
+                                title=f'KMS multi-region key audit: {kid}',
+                                title_tr=f'KMS çok bölgeli anahtar denetimi: {kid}',
+                                description=(
+                                    f'KMS key {kid} in {region} is a multi-region {role} key with '
+                                    f'{len(replicas)} replica(s): {", ".join(replicas) or "—"}. '
+                                    f'Multi-region keys ease cross-region DR but expand the cryptographic '
+                                    f'trust boundary — verify replicas are intentional and access-controlled.'
+                                ),
+                                description_tr=(
+                                    f'{region} bölgesindeki KMS anahtarı {kid}, {len(replicas)} replikalı '
+                                    f'çok bölgeli {role} anahtardır: {", ".join(replicas) or "—"}. '
+                                    f'Çok bölgeli anahtarlar bölgeler arası DR\'yi kolaylaştırır ama '
+                                    f'kriptografik güven sınırını genişletir — replikaların kasıtlı ve '
+                                    f'erişim kontrollü olduğunu doğrulayın.'
+                                ),
+                                severity='LOW', status='WARNING',
+                                service=SERVICE, resource_id=kid,
+                                resource_type='AWS::KMS::Key', region=region,
+                                frameworks={
+                                    'ISO27001': ['A.10.1.2'],
+                                    'SOC2':     ['CC6.7', 'CC6.1'],
+                                    'WAFR':     {'pillar': 'Security', 'controls': ['SEC06']},
+                                },
+                                remediation=(
+                                    f'KMS → {kid} → Replicas → review each replica region. Remove unused '
+                                    f'replicas; ensure key policies/grants apply consistently across regions.'
+                                ),
+                                remediation_tr=(
+                                    f'KMS → {kid} → Replikalar → her replika bölgesini inceleyin. Kullanılmayan '
+                                    f'replikaları kaldırın; anahtar politikaları/grant\'larının bölgeler arasında '
+                                    f'tutarlı uygulandığından emin olun.'
+                                ),
+                                details={'role': role, 'replicas': replicas},
+                            ))
                     except Exception:
                         pass
         except Exception as exc:

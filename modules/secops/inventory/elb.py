@@ -44,6 +44,7 @@ def run_checks(session, exclude_defaults=False, regions=None):
                         service=SERVICE, resource_id=lb_arn,
                         resource_type='AWS::ElasticLoadBalancingV2::LoadBalancer', region=region,
                         frameworks={
+                                    'SOC2': ['CC6.7'],
                             'CIS': ['3.10'], 'HIPAA': ['164.312(b)'],
                             'ISO27001': ['A.12.4.1'],
                             'WAFR': {'pillar': 'Security', 'controls': ['SEC04']},
@@ -63,7 +64,8 @@ def run_checks(session, exclude_defaults=False, regions=None):
                         severity='LOW', status='PASS' if deletion_protection else 'WARNING',
                         service=SERVICE, resource_id=lb_arn,
                         resource_type='AWS::ElasticLoadBalancingV2::LoadBalancer', region=region,
-                        frameworks={'WAFR': {'pillar': 'Reliability', 'controls': ['REL09']}},
+                        frameworks={
+                                    'SOC2': ['A1.2'],'WAFR': {'pillar': 'Reliability', 'controls': ['REL09']}},
                         remediation=f'ELB Console → {lb_name} → Attributes → Deletion protection → Enable.',
                         remediation_tr=f'ELB Konsol → {lb_name} → Özellikler → Silme koruması → Etkinleştir.',
                     ))
@@ -87,6 +89,7 @@ def run_checks(session, exclude_defaults=False, regions=None):
                                     service=SERVICE, resource_id=lb_arn,
                                     resource_type='AWS::ElasticLoadBalancingV2::LoadBalancer', region=region,
                                     frameworks={
+                                                'SOC2': ['CC6.7'],
                                         'CIS': ['2.1.2'], 'HIPAA': ['164.312(e)(1)'],
                                         'ISO27001': ['A.14.1.2'],
                                         'WAFR': {'pillar': 'Security', 'controls': ['SEC09']},
@@ -115,6 +118,7 @@ def run_checks(session, exclude_defaults=False, regions=None):
                                         service=SERVICE, resource_id=lb_arn,
                                         resource_type='AWS::ElasticLoadBalancingV2::LoadBalancer', region=region,
                                         frameworks={
+                                                    'SOC2': ['CC6.7'],
                                             'CIS': ['2.1.2'], 'HIPAA': ['164.312(e)(1)'],
                                             'ISO27001': ['A.14.1.2'],
                                             'WAFR': {'pillar': 'Security', 'controls': ['SEC09']},

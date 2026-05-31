@@ -24,6 +24,7 @@ let _serviceBarChart = null;
 let _svcDonutChart   = null;
 let _svcDistBarChart = null;
 let _wafrPillarChart = null;
+let _soc2PillarChart = null;
 let _trendChart          = null;
 let _findingTrendChart   = null;
 let _complianceGapChart  = null;
@@ -58,9 +59,20 @@ const SEV_COLORS = {
 };
 const STATUS_COLORS = {
   PASS: '#16a34a', FAIL: '#dc2626', WARNING: '#d97706',
-  NOT_AVAILABLE: '#6b7280', MANUAL: '#7c3aed',
+  NOT_AVAILABLE: '#6b7280', MANUAL: '#7c3aed', SUPPRESSED: '#a855f7',
 };
-const FW_COLORS = ['#ff9900','#4da6ff','#00c87a','#b07aff','#ffd166','#ff4d6a'];
+const FW_COLORS = ['#ff9900','#4da6ff','#00c87a','#b07aff','#8b5cf6','#ffd166','#ff4d6a'];
+
+// SOC2 control prefix → TSC pillar (mirrors backend soc2_catalog.pillar_for)
+const SOC2_PILLAR_FOR = (cid) => {
+  if (!cid) return null;
+  const u = cid.toUpperCase();
+  if (u.startsWith('CC'))  return 'Common Criteria';
+  if (u.startsWith('PI'))  return 'Processing Integrity';
+  if (u.startsWith('A'))   return 'Availability';
+  if (u.startsWith('C'))   return 'Confidentiality';
+  return null;
+};
 
 // Severity weights for weighted score calculation (mirrors backend)
 const SEV_WEIGHTS = { CRITICAL: 10, HIGH: 7, MEDIUM: 4, LOW: 2, INFO: 1 };
@@ -455,7 +467,9 @@ function renderDashboard(data, fromCache) {
   const findings   = data.findings   || [];
 
   _allFindings = findings;
-  _filteredFindings = [...findings];
+  // Hide SUPPRESSED by default — applyFilters() respects the current filter
+  // selection but always excludes SUPPRESSED unless the user picks it.
+  _filteredFindings = findings.filter(f => f.status !== 'SUPPRESSED');
   _expandedRows.clear();
   _searchText = '';
   const searchEl = document.getElementById('findingsSearch');
@@ -491,6 +505,7 @@ function renderDashboard(data, fromCache) {
   renderFwGauges(frameworks);
   renderServiceCharts(services);
   renderWafrPillarChart(frameworks.WAFR || {});
+  renderSoc2PillarChart(frameworks.SOC2 || {});
   renderTrendChart(data.profile);
   renderFindingTrendChart(data.profile);
   renderTopFailedChart(findings);
@@ -820,7 +835,8 @@ function renderFwGauges(frameworks) {
     const label  = key === 'ISO27001' ? 'ISO 27001' : key;
     const sublabel = key === 'WAFR' ? 'Well-Architected' :
                      key === 'CIS'  ? 'CIS Benchmark v3' :
-                     key === 'HIPAA'? 'HIPAA Security'   : 'ISO/IEC 27001';
+                     key === 'HIPAA'? 'HIPAA Security'   :
+                     key === 'SOC2' ? 'AICPA TSC 2017/2022' : 'ISO/IEC 27001';
     return `
       <div style="display:flex;flex-direction:column;align-items:center;padding:8px 4px;cursor:pointer"
            onclick="filterByFramework('${key}')" title="Click to filter findings by ${label}">
@@ -1144,7 +1160,225 @@ function filterByWAFRPillar(pillar) {
   _page = 1;
   renderFindingsTable();
   document.getElementById('findingsSection')?.scrollIntoView({ behavior: 'smooth' });
-  showCacheBanner('info', `WAFR Pillar: ${pillar} — ${_filteredFindings.length} findings. Click "Clear" to reset.`);
+  const clearLabel = t('profile_clear') || 'Clear';
+  showCacheBanner(
+    'info',
+    `WAFR Pillar: ${pillar} — ${_filteredFindings.length} findings.`,
+    [{ label: clearLabel, onClick: () => { clearFilters(); hideCacheBanner(); } }],
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Framework Breakdown Chart — tabbed (SOC2 / CIS / HIPAA / ISO 27001).
+// SOC2 uses pre-aggregated pillars from the backend; the flat frameworks
+// (CIS / HIPAA / ISO27001) are bucketed on the fly by control-ID prefix.
+// ---------------------------------------------------------------------------
+
+let _frameworkBreakdownTab = 'SOC2';
+
+// Friendly section labels per framework (control-ID prefix → display name).
+const _CIS_SECTION_LABEL = {
+  '1': 'IAM',
+  '2': 'Storage',
+  '3': 'Logging',
+  '4': 'Monitoring',
+  '5': 'Networking',
+};
+const _HIPAA_SECTION_LABEL = {
+  '164.308': 'Administrative',
+  '164.310': 'Physical',
+  '164.312': 'Technical',
+  '164.314': 'Organizational',
+  '164.316': 'Policies',
+  '164.402': 'Breach Notification',
+};
+const _ISO_SECTION_LABEL = {
+  'A.5':  'Info Security Policies',
+  'A.6':  'Org of Info Security',
+  'A.7':  'HR Security',
+  'A.8':  'Asset Management',
+  'A.9':  'Access Control',
+  'A.10': 'Cryptography',
+  'A.11': 'Physical Security',
+  'A.12': 'Operations Security',
+  'A.13': 'Communications',
+  'A.14': 'System Acquisition',
+  'A.15': 'Supplier Relationships',
+  'A.16': 'Incident Management',
+  'A.17': 'Business Continuity',
+  'A.18': 'Compliance',
+};
+
+// Map a control ID to its section bucket (key, label).
+function _frameworkSectionOf(fw, ctrl) {
+  if (!ctrl) return null;
+  if (fw === 'CIS') {
+    const sec = String(ctrl).split('.')[0];
+    return { key: sec, label: _CIS_SECTION_LABEL[sec] || ('CIS ' + sec) };
+  }
+  if (fw === 'HIPAA') {
+    const m = /^(\d+\.\d+)/.exec(String(ctrl));
+    if (!m) return null;
+    return { key: m[1], label: _HIPAA_SECTION_LABEL[m[1]] || m[1] };
+  }
+  if (fw === 'ISO27001') {
+    const m = /^(A\.\d+)/.exec(String(ctrl));
+    if (!m) return null;
+    return { key: m[1], label: _ISO_SECTION_LABEL[m[1]] || m[1] };
+  }
+  return null;
+}
+
+// Aggregate findings into section buckets for a flat framework.
+// Returns the same shape as SOC2.pillars so the renderer is shared:
+//   { 'Access Control': { pass, fail, total, score, section_key }, ... }
+function _aggregateFlatFramework(fw, findings) {
+  const buckets = {};
+  for (const f of findings || []) {
+    const ctrls = (f.frameworks || {})[fw];
+    if (!Array.isArray(ctrls)) continue;
+    const st = f.status;
+    if (st !== 'PASS' && st !== 'FAIL' && st !== 'WARNING') continue;
+    // A finding may map to multiple sections; tally each unique one
+    const seen = new Set();
+    for (const c of ctrls) {
+      const sec = _frameworkSectionOf(fw, c);
+      if (!sec || seen.has(sec.key)) continue;
+      seen.add(sec.key);
+      const b = buckets[sec.label] || (buckets[sec.label] = {
+        pass: 0, fail: 0, total: 0, section_key: sec.key,
+      });
+      b.total += 1;
+      if (st === 'PASS') b.pass += 1;
+      else b.fail += 1;
+    }
+  }
+  for (const k of Object.keys(buckets)) {
+    const b = buckets[k];
+    b.score = b.total ? Math.round((b.pass / b.total) * 1000) / 10 : 0;
+  }
+  return buckets;
+}
+
+// Headline label for the chart title bar (updates with tab).
+const _FW_HEADLINE = {
+  'SOC2':     "SOC2 — Trust Service Criteria",
+  'CIS':      "CIS — Foundations Benchmark v3",
+  'HIPAA':    "HIPAA — Security Rule",
+  'ISO27001': "ISO/IEC 27001 — Annex A",
+};
+
+function switchFrameworkTab(fw) {
+  _frameworkBreakdownTab = fw;
+  // Sync tab "active" class
+  document.querySelectorAll('#frameworkBreakdownTabs .fw-tab').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.fw === fw);
+  });
+  // Sync title
+  const titleEl = document.getElementById('frameworkBreakdownTitle');
+  if (titleEl) titleEl.textContent = _FW_HEADLINE[fw] || fw;
+  // Re-render
+  if (_lastScan) renderFrameworkBreakdownChart(_lastScan.frameworks || {});
+}
+
+function renderFrameworkBreakdownChart(frameworks) {
+  const ctx = document.getElementById('soc2PillarChart');
+  if (!ctx) return;
+  const fw = _frameworkBreakdownTab;
+
+  // Build {label: {pass,fail,total,score}} based on framework type
+  let buckets;
+  if (fw === 'SOC2') {
+    buckets = (frameworks.SOC2 && frameworks.SOC2.pillars) || {};
+  } else {
+    buckets = _aggregateFlatFramework(fw, _allFindings || []);
+  }
+  const labels = Object.keys(buckets);
+  if (!labels.length) {
+    if (_soc2PillarChart) { _soc2PillarChart.destroy(); _soc2PillarChart = null; }
+    // Optionally render a placeholder. For now leave the canvas empty so
+    // the framework-tab structure remains responsive.
+    return;
+  }
+  const scores = labels.map(p => buckets[p].score || 0);
+  const totals = labels.map(p => buckets[p].total || 0);
+  const colors = scores.map(s => s >= 80 ? '#16a34a' : s >= 60 ? '#d97706' : '#dc2626');
+  const cc = getChartColors();
+
+  if (_soc2PillarChart) _soc2PillarChart.destroy();
+  _soc2PillarChart = new Chart(ctx, {
+    type: 'bar',
+    data: { labels, datasets: [{ data: scores, backgroundColor: colors, borderRadius: 4 }] },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: c => ` ${c.raw}% (${buckets[labels[c.dataIndex]]?.pass||0}/${totals[c.dataIndex]} passed)`,
+            afterLabel: () => 'Click to filter findings',
+          },
+        },
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: cc.text, font: { size: 10 }, maxRotation: 30, minRotation: 0 } },
+        y: { min: 0, max: 100, grid: { color: cc.grid }, ticks: { color: cc.text, callback: v => v + '%' } },
+      },
+      onClick(_evt, elements) {
+        if (!elements.length) return;
+        const label = labels[elements[0].index];
+        if (fw === 'SOC2') {
+          filterBySoc2Pillar(label);
+        } else {
+          filterByFrameworkSection(fw, label, buckets[label].section_key);
+        }
+      },
+    },
+  });
+}
+
+// Back-compat shim — older callers still pass `frameworks.SOC2`. We ignore
+// the argument and route through the tabbed renderer using the active tab.
+function renderSoc2PillarChart(_soc2_unused) {
+  if (_lastScan) renderFrameworkBreakdownChart(_lastScan.frameworks || {});
+}
+
+function filterBySoc2Pillar(pillar) {
+  _filteredFindings = _allFindings.filter(f => {
+    const ctrls = f.frameworks?.SOC2;
+    if (!Array.isArray(ctrls)) return false;
+    return ctrls.some(cid => SOC2_PILLAR_FOR(cid) === pillar);
+  });
+  _page = 1;
+  renderFindingsTable();
+  document.getElementById('findingsSection')?.scrollIntoView({ behavior: 'smooth' });
+  const clearLabel = t('profile_clear') || 'Clear';
+  showCacheBanner(
+    'info',
+    `SOC2 Pillar: ${pillar} — ${_filteredFindings.length} findings.`,
+    [{ label: clearLabel, onClick: () => { clearFilters(); hideCacheBanner(); } }],
+  );
+}
+
+function filterByFrameworkSection(fw, sectionLabel, sectionKey) {
+  _filteredFindings = _allFindings.filter(f => {
+    const ctrls = (f.frameworks || {})[fw];
+    if (!Array.isArray(ctrls)) return false;
+    return ctrls.some(c => {
+      const s = _frameworkSectionOf(fw, c);
+      return s && s.key === sectionKey;
+    });
+  });
+  _page = 1;
+  renderFindingsTable();
+  document.getElementById('findingsSection')?.scrollIntoView({ behavior: 'smooth' });
+  const clearLabel = t('profile_clear') || 'Clear';
+  showCacheBanner(
+    'info',
+    `${fw} ${sectionKey} (${sectionLabel}) — ${_filteredFindings.length} findings.`,
+    [{ label: clearLabel, onClick: () => { clearFilters(); hideCacheBanner(); } }],
+  );
 }
 
 function filterByServiceRegion(svc, region) {
@@ -1152,7 +1386,12 @@ function filterByServiceRegion(svc, region) {
   _page = 1;
   renderFindingsTable();
   document.getElementById('findingsSection')?.scrollIntoView({ behavior: 'smooth' });
-  showCacheBanner('info', `${svc} / ${region} — ${_filteredFindings.length} findings. Click "Clear" to reset.`);
+  const clearLabel = t('profile_clear') || 'Clear';
+  showCacheBanner(
+    'info',
+    `${svc} / ${region} — ${_filteredFindings.length} findings.`,
+    [{ label: clearLabel, onClick: () => { clearFilters(); hideCacheBanner(); } }],
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -2032,6 +2271,8 @@ function applyFilters() {
     if (sev    && f.severity !== sev)                              return false;
     if (svc    && f.service  !== svc)                              return false;
     if (status && f.status   !== status)                           return false;
+    // Hide SUPPRESSED by default; user must pick 'Suppressed' explicitly
+    if (!status && f.status === 'SUPPRESSED')                      return false;
     if (fw     && !Object.keys(f.frameworks || {}).includes(fw))   return false;
     return true;
   });
@@ -2058,7 +2299,8 @@ function clearFilters() {
   const s = document.getElementById('findingsSearch');
   if (s) s.value = '';
   _searchText = '';
-  _filteredFindings = [..._allFindings];
+  // Hide SUPPRESSED on Clear (matches default behaviour)
+  _filteredFindings = _allFindings.filter(f => f.status !== 'SUPPRESSED');
   _page = 1;
   renderFindingsTable();
 }
@@ -2170,14 +2412,17 @@ function renderFindingsTable() {
       return `<span style="margin-right:8px;white-space:nowrap"><strong>${_escHtml(k)}</strong>: ${_escHtml(controls)}</span>`;
     }).join('');
 
+    const deltaBadge = _renderDeltaBadge(f.delta);
+    const idEsc = f.id.replace(/'/g, "\\'");
+
     const mainRow = `<tr style="cursor:pointer;${expanded ? 'background:var(--bg-base)' : ''}"
-         onclick="toggleRowExpand('${f.id.replace(/'/g,"\\'")}')">
+         onclick="toggleRowExpand('${idEsc}')">
       <td><span class="badge" style="background:${sc}">${_escHtml(f.severity)}</span></td>
       <td><span class="badge" style="background:${stc}">${_escHtml(f.status)}</span></td>
       <td style="white-space:nowrap;font-size:12px">${_escHtml(f.service)}</td>
       <td>
         <div style="font-weight:500;font-size:12px;display:flex;align-items:center;gap:6px">
-          <span style="opacity:.5;font-size:10px">${expanded ? '▼' : '▶'}</span>${_escHtml(f.title)}
+          <span style="opacity:.5;font-size:10px">${expanded ? '▼' : '▶'}</span>${deltaBadge}${_escHtml(f.title)}
         </div>
       </td>
       <td style="font-family:monospace;font-size:11px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
@@ -2187,6 +2432,25 @@ function renderFindingsTable() {
     </tr>`;
 
     if (!expanded) return mainRow;
+
+    // Suppression info (when the finding is currently suppressed)
+    const sup = f.suppression || null;
+    let actionHtml = '';
+    if (f.status === 'SUPPRESSED' && sup) {
+      const since = sup.created_at ? new Date(sup.created_at).toLocaleString() : '';
+      actionHtml = `
+        <div style="margin-top:10px;padding:8px 10px;background:var(--bg-base);border-left:3px solid #a855f7;border-radius:4px;font-size:12px">
+          <div style="font-weight:700;color:#a855f7;margin-bottom:2px">⊘ ${t('secops_suppressed_label') || 'Suppressed'}</div>
+          <div style="color:var(--text-secondary)">${_escHtml(sup.reason || '—')}</div>
+          <div style="color:var(--text-muted);font-size:11px;margin-top:4px">${_escHtml(sup.user || '')} · ${_escHtml(since)}</div>
+          <button class="btn btn-outline btn-sm" style="margin-top:6px"
+                  onclick="event.stopPropagation(); restoreSuppression('${idEsc}')">${t('secops_unsuppress') || 'Restore'}</button>
+        </div>`;
+    } else if (f.status === 'FAIL' || f.status === 'WARNING') {
+      actionHtml = `
+        <button class="btn btn-outline btn-sm" style="margin-top:10px"
+                onclick="event.stopPropagation(); openSuppressDialog('${idEsc}')">⊘ ${t('secops_suppress') || 'Suppress'}</button>`;
+    }
 
     const detailRow = `<tr style="background:var(--bg-base)">
       <td colspan="7" style="padding:0 16px 16px 32px;border-bottom:2px solid var(--accent)">
@@ -2204,6 +2468,7 @@ function renderFindingsTable() {
           <span style="color:var(--text-muted);font-weight:600;margin-right:4px">Frameworks:</span>${fwDetail}
           <span style="margin-left:12px;color:var(--text-muted)">Type: <code style="font-size:10px;color:var(--text-secondary)">${_escHtml(f.resource_type||'—')}</code></span>
         </div>
+        ${actionHtml}
       </td>
     </tr>`;
 
@@ -2230,6 +2495,123 @@ function goPage(p) {
   if (p > pages) return;
   _page = p;
   renderFindingsTable();
+}
+
+// ---------------------------------------------------------------------------
+// Delta badges (new / fixed / regression)
+// ---------------------------------------------------------------------------
+function _renderDeltaBadge(delta) {
+  if (delta === 'new') {
+    const lbl = t('secops_delta_new') || 'new';
+    return `<span title="${lbl}" style="background:#2563eb;color:#fff;font-size:9px;font-weight:700;padding:1px 6px;border-radius:9px;letter-spacing:.5px">NEW</span>`;
+  }
+  if (delta === 'fixed') {
+    const lbl = t('secops_delta_fixed') || 'fixed since last scan';
+    return `<span title="${lbl}" style="background:#16a34a;color:#fff;font-size:9px;font-weight:700;padding:1px 6px;border-radius:9px;letter-spacing:.5px">FIXED</span>`;
+  }
+  if (delta === 'regression') {
+    const lbl = t('secops_delta_regression') || 'regression';
+    return `<span title="${lbl}" style="background:#dc2626;color:#fff;font-size:9px;font-weight:700;padding:1px 6px;border-radius:9px;letter-spacing:.5px">REGR</span>`;
+  }
+  return '';
+}
+
+// ---------------------------------------------------------------------------
+// Suppression — modal + API
+// ---------------------------------------------------------------------------
+function openSuppressDialog(findingId) {
+  const profile = _lastScan?.profile;
+  if (!profile) return;
+  const finding = _allFindings.find(f => f.id === findingId);
+  const title = finding ? finding.title : findingId;
+
+  const overlay = document.createElement('div');
+  overlay.id = 'suppressModalOverlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:center;justify-content:center';
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+
+  const modal = document.createElement('div');
+  modal.style.cssText = 'background:var(--bg-elevated);border-radius:8px;padding:20px;width:480px;max-width:92vw;box-shadow:0 8px 32px rgba(0,0,0,.4)';
+  const heading = document.createElement('div');
+  heading.textContent = t('secops_suppress_title') || 'Mark as accepted risk';
+  heading.style.cssText = 'font-weight:700;font-size:15px;margin-bottom:6px;color:var(--text-primary)';
+  const subtitle = document.createElement('div');
+  subtitle.textContent = title;
+  subtitle.style.cssText = 'font-size:12px;color:var(--text-muted);margin-bottom:14px;word-break:break-word';
+  const help = document.createElement('div');
+  help.textContent = t('secops_suppress_help') || 'Suppressed findings are excluded from score and remain hidden until explicitly restored. Provide a reason for the audit trail.';
+  help.style.cssText = 'font-size:11px;color:var(--text-muted);margin-bottom:8px';
+  const textarea = document.createElement('textarea');
+  textarea.placeholder = t('secops_suppress_reason') || 'Reason (e.g. policy condition restricts access, false positive — see ticket#)';
+  textarea.style.cssText = 'width:100%;min-height:80px;padding:8px;border:1px solid var(--border);border-radius:4px;background:var(--bg-base);color:var(--text-primary);font-size:13px;font-family:inherit;resize:vertical';
+  const buttons = document.createElement('div');
+  buttons.style.cssText = 'display:flex;justify-content:flex-end;gap:8px;margin-top:14px';
+  const cancel = document.createElement('button');
+  cancel.className = 'btn btn-outline btn-sm';
+  cancel.textContent = t('profile_clear') === 'Temizle' ? 'İptal' : 'Cancel';
+  cancel.addEventListener('click', () => overlay.remove());
+  const confirm = document.createElement('button');
+  confirm.className = 'btn btn-primary btn-sm';
+  confirm.textContent = t('secops_suppress_confirm') || 'Suppress';
+  confirm.addEventListener('click', async () => {
+    confirm.disabled = true;
+    try {
+      const resp = await fetch('/secops/api/suppress', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ profile, finding_id: findingId, reason: textarea.value }),
+      });
+      const data = await resp.json();
+      if (data.status !== 'ok') throw new Error(data.error || 'Suppress failed');
+      overlay.remove();
+      // Refresh from cached scan so UI reflects new SUPPRESSED status & score
+      await refreshLastScan();
+    } catch (e) {
+      confirm.disabled = false;
+      alert((t('secops_suppress_error') || 'Suppress failed') + ': ' + e.message);
+    }
+  });
+  buttons.appendChild(cancel);
+  buttons.appendChild(confirm);
+  modal.append(heading, subtitle, help, textarea, buttons);
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+  setTimeout(() => textarea.focus(), 50);
+}
+
+async function restoreSuppression(findingId) {
+  const profile = _lastScan?.profile;
+  if (!profile) return;
+  if (!confirm(t('secops_unsuppress_confirm') || 'Restore this finding to its prior status?')) return;
+  try {
+    const resp = await fetch('/secops/api/suppress', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ profile, finding_id: findingId }),
+    });
+    const data = await resp.json();
+    if (data.status !== 'ok') throw new Error(data.error || 'Restore failed');
+    await refreshLastScan();
+  } catch (e) {
+    alert((t('secops_unsuppress_error') || 'Restore failed') + ': ' + e.message);
+  }
+}
+
+async function refreshLastScan() {
+  const profile = _lastScan?.profile;
+  if (!profile) return;
+  try {
+    const resp = await fetch(`/secops/api/last-scan?profile=${encodeURIComponent(profile)}`);
+    const data = await resp.json();
+    if (data && data.status !== 'not_found') {
+      // Re-render whole page with refreshed cache
+      _lastScan = data;
+      _allFindings = data.findings || [];
+      _filteredFindings = [..._allFindings];
+      // Trigger the same render path the post-scan flow uses
+      renderDashboard(data);
+    }
+  } catch (_) { /* non-critical */ }
 }
 
 // ---------------------------------------------------------------------------
@@ -2493,16 +2875,39 @@ function updateProgress(percent, completed, service, total) {
   if (cnt) cnt.textContent = total ? `${completed} / ${total}` : '';
 }
 
-function showCacheBanner(type, msg) {
+function showCacheBanner(type, msg, actions) {
   const el = document.getElementById('cacheBanner');
   if (!el) return;
   const colors = { info: '#1e3a5f', warning: '#7c4a00', error: '#5f1d1d' };
   const bords  = { info: '#2563eb', warning: '#d97706', error: '#dc2626' };
   el.style.cssText = `
-    display:block;padding:10px 16px;border-radius:6px;margin-bottom:16px;
+    display:flex;align-items:center;gap:12px;padding:10px 16px;border-radius:6px;margin-bottom:16px;
     background:${colors[type]||colors.info};border-left:3px solid ${bords[type]||bords.info};
     font-size:13px;color:var(--text-primary)`;
-  el.textContent = msg;
+  el.replaceChildren();
+  const text = document.createElement('span');
+  text.style.flex = '1';
+  text.textContent = msg;
+  el.appendChild(text);
+  if (Array.isArray(actions)) {
+    actions.forEach(a => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = a.label;
+      btn.style.cssText = 'background:transparent;border:1px solid currentColor;color:inherit;padding:4px 12px;border-radius:4px;cursor:pointer;font-size:12px;font-weight:600';
+      btn.addEventListener('click', a.onClick);
+      el.appendChild(btn);
+    });
+  }
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.setAttribute('aria-label', 'Close');
+  closeBtn.textContent = '✕';
+  closeBtn.style.cssText = 'background:transparent;border:0;color:inherit;opacity:0.7;cursor:pointer;font-size:14px;line-height:1;padding:4px 6px;margin-left:auto';
+  closeBtn.addEventListener('mouseenter', () => closeBtn.style.opacity = '1');
+  closeBtn.addEventListener('mouseleave', () => closeBtn.style.opacity = '0.7');
+  closeBtn.addEventListener('click', hideCacheBanner);
+  el.appendChild(closeBtn);
 }
 
 function hideCacheBanner() {
@@ -2683,6 +3088,7 @@ document.addEventListener('themechange', () => {
   renderFwGauges(_lastScan.frameworks || {});
   renderServiceCharts(_lastScan.services || {});
   renderWafrPillarChart(_lastScan.frameworks?.WAFR || {});
+  renderSoc2PillarChart(_lastScan.frameworks?.SOC2 || {});
   renderTrendChart(_lastScan.profile);
   renderFindingTrendChart(_lastScan.profile);
   renderTopFailedChart(_lastScan.findings || []);

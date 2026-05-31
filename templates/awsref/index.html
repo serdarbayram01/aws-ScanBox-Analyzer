@@ -1,0 +1,487 @@
+{% extends "base.html" %}
+
+{% block title %}AWS Reference — ScanBox{% endblock %}
+{% block page_title %}<span data-i18n="awsref_title">AWS Reference</span>{% endblock %}
+{% block page_subtitle %}<span data-i18n="awsref_subtitle">Public AWS service availability + network reachability — no AWS credentials required</span>{% endblock %}
+
+{% block sidebar_sections %}
+<div class="nav-section-label" data-i18n="nav_section_main">Main</div>
+
+<a class="nav-item active" data-section="dashboard" href="/awsref">
+  <span class="nav-icon">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+      <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+    </svg>
+  </span>
+  <span class="nav-label" data-i18n="awsref_nav_dashboard">Dashboard</span>
+</a>
+{% endblock %}
+
+{% block content %}
+<link rel="stylesheet" href="/static/awsref/css/awsref.css?v=20260527b">
+
+<div class="awsref-page">
+
+  <!-- Tab strip — switches between AWS Services and Region Matrix -->
+  <div class="awsref-tab-bar">
+    <div class="awsref-tab-strip" id="awsrefTabs">
+      <button type="button" class="fw-tab active" data-tab="services"
+              onclick="switchAwsRefTab('services')"
+              data-i18n="awsref_tab_services">AWS Services</button>
+      <button type="button" class="fw-tab" data-tab="matrix"
+              onclick="switchAwsRefTab('matrix')"
+              data-i18n="awsref_tab_matrix">Region Matrix</button>
+    </div>
+    <div class="awsref-info-badge">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+      </svg>
+      <span data-i18n="awsref_no_auth">No AWS credentials required — uses TCP probes + public catalog only</span>
+    </div>
+  </div>
+
+  <!-- AWS Services pane -->
+  <div class="awsref-pane" id="paneServices">
+    <div class="awsref-toolbar">
+      <label class="awsref-label" data-i18n="awsref_select_region">Region / Local Zone</label>
+      <select id="awsrefRegionSelect" class="awsref-select"
+              onchange="loadAwsRefServices(this.value)"></select>
+      <span class="awsref-pretty-name" id="awsrefPrettyName"></span>
+      <span class="awsref-svc-count" id="awsrefSvcCount" style="margin-left:auto"></span>
+      <button class="btn btn-outline btn-sm" id="awsrefProbeBtn"
+              onclick="probeAwsRefServices()"
+              data-i18n="awsref_probe_now">Probe latency</button>
+    </div>
+
+    <!-- LZ-only detail panels — only shown when an LZ is selected. -->
+    <div id="awsrefLzDetail" style="display:none; margin-top: 12px;">
+
+      <!-- Instance Type Offerings (LZ-only) -->
+      <div class="table-card awsref-lz-panel" style="margin-bottom: 12px;">
+        <div class="awsref-lz-panel-header">
+          <span class="awsref-lz-panel-icon">⓵</span>
+          <span data-i18n="awsref_lz_inst_title">INSTANCE TYPE OFFERINGS (LZ-ONLY)</span>
+          <span class="awsref-lz-panel-source" id="awsrefLzInstSource"></span>
+        </div>
+        <div class="awsref-instance-chips" id="awsrefLzInstChips"></div>
+      </div>
+
+      <!-- LZ Services Catalog — supported/partial/unsupported -->
+      <div class="table-card awsref-lz-panel">
+        <div class="awsref-lz-panel-header">
+          <span class="awsref-lz-panel-icon">⓶</span>
+          <span data-i18n="awsref_lz_cat_title">LZ SERVICES CATALOG (DATA PLANE / AVAILABILITY)</span>
+          <span class="awsref-lz-panel-source" id="awsrefLzCatSource"></span>
+        </div>
+        <p class="awsref-lz-panel-desc" data-i18n="awsref_lz_cat_desc">
+          What the Local Zone <i>itself</i> runs vs. what is regional-only.
+          Combines three sources: <b>(1)</b> hand-curated entries from the
+          ist-LZ-TEST verified-live catalog, <b>(2)</b> derived from
+          ScanBox's internal service catalog, and <b>(3)</b> every service
+          AWS publishes in the parent region (from
+          <code>api.regional-table.region-services.aws.a2z.com</code>).
+        </p>
+        <div class="awsref-lz-stats" id="awsrefLzCatStats" style="margin-bottom:6px"></div>
+        <div style="overflow-x:auto">
+          <table class="data-table awsref-table awsref-lz-catalog-table" id="awsrefLzCatTable">
+            <thead>
+              <tr class="awsref-sort-row">
+                <th class="awsref-sortable" data-sort-col="category" onclick="sortAwsRefLzCat('category')"><span data-i18n="awsref_lz_col_category">Category</span><span class="awsref-sort-ind"></span></th>
+                <th class="awsref-sortable" data-sort-col="service"  onclick="sortAwsRefLzCat('service')" ><span data-i18n="awsref_lz_col_service" >Service</span> <span class="awsref-sort-ind"></span></th>
+                <th class="awsref-sortable" data-sort-col="status"   onclick="sortAwsRefLzCat('status')"  ><span data-i18n="awsref_lz_col_status"  >Status</span>  <span class="awsref-sort-ind"></span></th>
+                <th class="awsref-sortable" data-sort-col="notes"    onclick="sortAwsRefLzCat('notes')"   ><span data-i18n="awsref_lz_col_notes"   >Notes</span>   <span class="awsref-sort-ind"></span></th>
+              </tr>
+              <tr class="awsref-filter-row">
+                <th><select id="awsrefLzCatFilterCat"    class="awsref-col-filter-select" onchange="renderAwsRefLzCat()"><option value="all">all categories</option></select></th>
+                <th><input  id="awsrefLzCatFilterSvc"    class="awsref-col-filter-input"  oninput="renderAwsRefLzCat()" placeholder="filter service…"/></th>
+                <th><select id="awsrefLzCatFilterStatus" class="awsref-col-filter-select" onchange="renderAwsRefLzCat()">
+                  <option value="all">all</option>
+                  <option value="supported">supported</option>
+                  <option value="partial">partial</option>
+                  <option value="unsupported">unsupported</option>
+                </select></th>
+                <th><input  id="awsrefLzCatFilterNotes"  class="awsref-col-filter-input"  oninput="renderAwsRefLzCat()" placeholder="filter notes…"/></th>
+              </tr>
+            </thead>
+            <tbody id="awsrefLzCatTBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="table-card" style="margin-top:8px">
+      <div class="awsref-lz-panel-header">
+        <span class="awsref-lz-panel-icon">⓷</span>
+        <span data-i18n="awsref_lz_endpoints_title">SERVICE ENDPOINTS (REACHABILITY)</span>
+        <span class="awsref-lz-panel-source" data-i18n="awsref_lz_endpoints_desc"
+              style="font-style:italic; font-weight:normal;">
+          Reachability of every AWS service endpoint in this region/LZ. Click "Probe latency" to measure.
+        </span>
+      </div>
+      <div class="awsref-svc-scroll">
+        <table class="data-table awsref-table awsref-services-table" id="awsrefServiceTable">
+          <thead>
+            <tr class="awsref-sort-row">
+              <th class="awsref-sortable" data-sort-col="name"     onclick="sortAwsRefServices('name')"    ><span data-i18n="awsref_col_service" >Service</span>  <span class="awsref-sort-ind"></span></th>
+              <th class="awsref-sortable" data-sort-col="category" onclick="sortAwsRefServices('category')"><span data-i18n="awsref_col_category">Category</span> <span class="awsref-sort-ind"></span></th>
+              <th class="awsref-sortable" data-sort-col="lz_scope" onclick="sortAwsRefServices('lz_scope')"><span data-i18n="awsref_col_scope"   >Scope</span>    <span class="awsref-sort-ind"></span></th>
+              <th class="awsref-sortable" data-sort-col="endpoint" onclick="sortAwsRefServices('endpoint')"><span data-i18n="awsref_col_endpoint">Endpoint</span> <span class="awsref-sort-ind"></span></th>
+              <th class="awsref-sortable" data-sort-col="p50_ms"   onclick="sortAwsRefServices('p50_ms')"  ><span data-i18n="awsref_col_p50"     >p50 ms</span>   <span class="awsref-sort-ind"></span></th>
+              <th class="awsref-sortable" data-sort-col="p95_ms"   onclick="sortAwsRefServices('p95_ms')"  ><span data-i18n="awsref_col_p95"     >p95 ms</span>   <span class="awsref-sort-ind"></span></th>
+            </tr>
+            <tr class="awsref-filter-row">
+              <th><input type="text" id="awsrefSvcFilterName"     class="awsref-col-filter-input" oninput="renderAwsRefServices()" placeholder="filter…"/></th>
+              <th><select id="awsrefSvcFilterCategory" class="awsref-col-filter-select" onchange="renderAwsRefServices()"><option value="all">all</option></select></th>
+              <th><select id="awsrefSvcFilterScope"    class="awsref-col-filter-select" onchange="renderAwsRefServices()"><option value="all">all</option></select></th>
+              <th><input type="text" id="awsrefSvcFilterEndpoint" class="awsref-col-filter-input" oninput="renderAwsRefServices()" placeholder="filter…"/></th>
+              <th><select id="awsrefSvcFilterP50"      class="awsref-col-filter-select" onchange="renderAwsRefServices()"><option value="all">all</option><option value="reachable">reachable</option><option value="unreachable">unreachable</option><option value="not-probed">not probed</option></select></th>
+              <th><select id="awsrefSvcFilterP95"      class="awsref-col-filter-select" onchange="renderAwsRefServices()"><option value="all">all</option><option value="reachable">reachable</option><option value="unreachable">unreachable</option><option value="not-probed">not probed</option></select></th>
+            </tr>
+          </thead>
+          <tbody id="awsrefServiceTBody">
+            <tr><td colspan="6" style="text-align:center;padding:24px;color:var(--text-muted)">
+              <span class="spinner"></span>
+              <span data-i18n="state_loading">Loading...</span>
+            </td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Region Matrix pane — AWS Region Latency Matrix -->
+  <div class="awsref-pane" id="paneMatrix" style="display:none">
+
+    <div class="awsref-matrix-header">
+      <div>
+        <div class="awsref-matrix-title" data-i18n="awsref_matrix_title">AWS Region Latency Matrix</div>
+      </div>
+      <button type="button" class="awsref-about-btn" onclick="toggleAwsRefAbout()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+        </svg>
+        <span data-i18n="awsref_about_view">About this view</span>
+      </button>
+    </div>
+
+    <!-- "About this view" — multi-tab panel matching reference benchsuite -->
+    <div class="awsref-about-panel" id="awsrefAboutPanel" style="display:none">
+      <div class="awsref-info-tabs" id="awsrefInfoTabs">
+        <button type="button" class="awsref-info-tab active" data-info-tab="local"
+                onclick="switchAwsRefInfoTab('local')"
+                data-i18n="awsref_info_tab_local">Local probe</button>
+        <button type="button" class="awsref-info-tab" data-info-tab="mesh"
+                onclick="switchAwsRefInfoTab('mesh')"
+                data-i18n="awsref_info_tab_mesh">Full mesh</button>
+        <button type="button" class="awsref-info-tab" data-info-tab="cmp"
+                onclick="switchAwsRefInfoTab('cmp')"
+                data-i18n="awsref_info_tab_cmp">Comparison</button>
+        <button type="button" class="awsref-info-tab" data-info-tab="metrics"
+                onclick="switchAwsRefInfoTab('metrics')"
+                data-i18n="awsref_info_tab_metrics">Metrics</button>
+        <button type="button" class="awsref-info-close"
+                onclick="toggleAwsRefAbout()"
+                aria-label="Close">×</button>
+      </div>
+
+      <!-- LOCAL PROBE pane -->
+      <div class="awsref-info-pane" data-info-pane="local">
+        <p data-i18n-html="awsref_info_local_measures"><b>What it measures.</b>
+          Real-time TCP-connect RTT from <i>this host</i> (the ScanBox server
+          you're connected to) to every public AWS region's S3 endpoint.
+          5 samples per target, run in parallel.</p>
+        <p data-i18n-html="awsref_info_local_path"><b>Path traversed.</b>
+          This host → host's Internet egress → AWS Edge / public Internet →
+          target region's S3 endpoint. This is the <b>same path</b> any workload
+          running on this host would use to call regional AWS services.</p>
+        <p data-i18n-html="awsref_info_local_numbers"><b>Numbers reflect.</b>
+          The latency your real application observes — including egress hop,
+          Internet routing, and TCP handshake. P50/P95/P99/stdev are computed
+          per target.</p>
+        <p data-i18n-html="awsref_info_local_use"><b>Use when.</b>
+          Sizing a real latency budget, picking the closest region from this
+          host, validating that workload network performance matches
+          expectations.</p>
+        <p class="awsref-info-caveat" data-i18n-html="awsref_info_local_caveat">
+          <b>Caveat.</b> One row of the matrix only — from this single host.
+          For cross-host paths, deploy agents on the other side (P2P pattern).</p>
+      </div>
+
+      <!-- FULL MESH pane -->
+      <div class="awsref-info-pane" data-info-pane="mesh" style="display:none">
+        <p data-i18n-html="awsref_info_mesh_measures"><b>What it measures.</b>
+          CloudPing.co's region × region matrix — the median latency between AWS
+          Lambda agents running <i>inside</i> two AWS regions, aggregated over the
+          timeframe you pick (P50 / 1 Day default).</p>
+        <p data-i18n-html="awsref_info_mesh_path"><b>Path traversed.</b>
+          AWS internal backbone, region-to-region <b>private</b> network.
+          <b>Not</b> the public Internet path; no edge POP, no customer-facing routing.</p>
+        <p data-i18n-html="awsref_info_mesh_numbers"><b>Numbers reflect.</b>
+          AWS infrastructure baseline between regions — useful for capacity
+          planning and comparing AWS backbone performance. <b>Not</b> what your
+          real LZ workload observes (LZ egress + Internet adds ~25–35 ms on top).</p>
+        <p class="awsref-info-caveat" data-i18n-html="awsref_info_mesh_lz_caveat">
+          <b>Local Zone caveat.</b> CloudPing does not measure Local Zones.
+          We augment the matrix by mirroring each LZ's parent region row &amp;
+          column. Real LZ-to-LZ measurement requires an agent inside each LZ.</p>
+        <p data-i18n-html="awsref_info_mesh_source"><b>Source &amp; caching.</b>
+          <a href="https://www.cloudping.co/" target="_blank" rel="noopener" style="color:var(--accent)">cloudping.co</a>
+          (community-maintained, MIT-licensed). Server caches upstream for 24 hours
+          per (percentile, timeframe). Set the <code>CLOUDPING_PROXY_URL</code>
+          env var to a benchsuite-compatible proxy to unlock all P10..P99 ×
+          1D/1W/1M/1Y combinations.</p>
+        <p data-i18n-html="awsref_info_mesh_use"><b>Use when.</b>
+          Multi-region deployment planning, choosing a primary/secondary region
+          pair, comparing your local probes against community-aggregated AWS
+          backbone numbers.</p>
+      </div>
+
+      <!-- COMPARISON pane -->
+      <div class="awsref-info-pane" data-info-pane="cmp" style="display:none">
+        <table class="awsref-info-compare">
+          <thead>
+            <tr><th></th>
+                <th data-i18n="awsref_info_tab_local">Local probe</th>
+                <th data-i18n="awsref_info_tab_mesh">Full mesh (CloudPing)</th></tr>
+          </thead>
+          <tbody>
+            <tr><th data-i18n="awsref_info_cmp_source">Source</th>
+                <td data-i18n="awsref_info_cmp_src_local">This host probes live</td>
+                <td data-i18n="awsref_info_cmp_src_mesh">CloudPing's Lambda agents in every region</td></tr>
+            <tr><th data-i18n="awsref_info_cmp_dir">Direction</th>
+                <td data-i18n="awsref_info_cmp_dir_local">1 row — this host → all targets</td>
+                <td data-i18n="awsref_info_cmp_dir_mesh">67 × 67 grid — every region/LZ pair</td></tr>
+            <tr><th data-i18n="awsref_info_cmp_path">Path</th>
+                <td data-i18n="awsref_info_cmp_path_local">Host → public Internet → S3 endpoint</td>
+                <td data-i18n="awsref_info_cmp_path_mesh">AWS internal backbone (region-to-region)</td></tr>
+            <tr><th data-i18n="awsref_info_cmp_freshness">Freshness</th>
+                <td data-i18n="awsref_info_cmp_fresh_local">Real-time on demand</td>
+                <td data-i18n="awsref_info_cmp_fresh_mesh">24h server cache + CloudPing window</td></tr>
+            <tr><th data-i18n="awsref_info_cmp_includes_lz">Includes LZ data</th>
+                <td data-i18n="awsref_info_cmp_lz_local">Yes (direct TCP probe)</td>
+                <td data-i18n="awsref_info_cmp_lz_mesh">Yes (mirrored from parent region)</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- METRICS pane — interactive chip selector + per-metric description -->
+      <div class="awsref-info-pane" data-info-pane="metrics" style="display:none">
+        <p class="awsref-metric-intro" data-i18n-html="awsref_info_metrics_intro">
+          What each value in the <i>Percentile</i> dropdown means. Pick a metric below.</p>
+        <div class="awsref-metric-chips" id="awsrefMetricChips">
+          <button type="button" class="awsref-metric-chip"        data-metric="p50">P50</button>
+          <button type="button" class="awsref-metric-chip"        data-metric="min">min</button>
+          <button type="button" class="awsref-metric-chip"        data-metric="p10">P10</button>
+          <button type="button" class="awsref-metric-chip"        data-metric="p25">P25</button>
+          <button type="button" class="awsref-metric-chip active" data-metric="p75">P75</button>
+          <button type="button" class="awsref-metric-chip"        data-metric="p90">P90</button>
+          <button type="button" class="awsref-metric-chip"        data-metric="p95">P95</button>
+          <button type="button" class="awsref-metric-chip"        data-metric="p98">P98</button>
+          <button type="button" class="awsref-metric-chip"        data-metric="p99">P99</button>
+          <button type="button" class="awsref-metric-chip"        data-metric="max">max</button>
+          <button type="button" class="awsref-metric-chip"        data-metric="stdev">stdev</button>
+        </div>
+
+        <div class="awsref-metric-defs">
+          <div class="awsref-metric-def" data-metric-def="p50" style="display:none">
+            <p><b>P50.</b> Half of all samples are at or below this value — the median.
+              "If I make one request, this is the time I should expect roughly half
+              the time." The default reference number.</p>
+            <p><b>Example.</b> P50 = 18 ms means a typical round-trip is 18 ms; many
+              requests are faster, many are slower, but 18 ms is the centre of the bell.</p>
+            <p><b>Read it as.</b> "This is the typical experience."</p>
+          </div>
+          <div class="awsref-metric-def" data-metric-def="min" style="display:none">
+            <p><b>min.</b> The fastest single sample observed in the window. Useful
+              as a floor — your path will never be meaningfully faster than this.</p>
+            <p><b>Example.</b> min = 8 ms, P50 = 22 ms → 14 ms of overhead routinely
+              creeps in (queueing, retries, retransmits).</p>
+            <p><b>Read it as.</b> "This is the best the path can do."</p>
+          </div>
+          <div class="awsref-metric-def" data-metric-def="p10" style="display:none">
+            <p><b>P10.</b> 10% of samples are at or below this value — the fast 10%.
+              Tells you the lower edge of a "good run".</p>
+            <p><b>Example.</b> P10 stable but P50 rising → the path *can* still hit
+              fast numbers; something is pulling the median up intermittently.</p>
+            <p><b>Read it as.</b> "This is what good days look like."</p>
+          </div>
+          <div class="awsref-metric-def" data-metric-def="p25" style="display:none">
+            <p><b>P25.</b> The lower quartile — 25% of samples are at or below.
+              Better than typical without being a best-case outlier.</p>
+            <p><b>Example.</b> P25 ≈ P50 means the distribution is tight on the
+              fast side; a wide gap means most requests are slower than the lucky ones.</p>
+            <p><b>Read it as.</b> "This is the fast edge of normal."</p>
+          </div>
+          <div class="awsref-metric-def" data-metric-def="p75">
+            <p><b>P75.</b> 75% of samples are at or below this value — the upper
+              quartile. The boundary where "still typical" ends and "occasional
+              slowness" begins. Useful as an early-warning signal.</p>
+            <p><b>Example.</b> P50 stays flat but P75 climbs — the slow side of
+              typical is degrading even though the median looks fine.</p>
+            <p><b>Read it as.</b> "This is the slow edge of normal."</p>
+          </div>
+          <div class="awsref-metric-def" data-metric-def="p90" style="display:none">
+            <p><b>P90.</b> 90% of samples are at or below this value — the start
+              of the tail. The slowest 10% live beyond here.</p>
+            <p><b>Example.</b> P90 = 60 ms while P50 = 25 ms → 1 in 10 requests
+              takes 2.4× the typical time.</p>
+            <p><b>Read it as.</b> "This is when things start being noticeably slow."</p>
+          </div>
+          <div class="awsref-metric-def" data-metric-def="p95" style="display:none">
+            <p><b>P95.</b> 95% of samples are at or below this value. Captures most
+              of the tail without being overly pessimistic. Standard SLA target
+              for user-facing systems.</p>
+            <p><b>Example.</b> "P95 latency &lt; 100 ms" is a common SLO — meets
+              users' patience threshold most of the time.</p>
+            <p><b>Read it as.</b> "Almost everyone gets at least this good."</p>
+          </div>
+          <div class="awsref-metric-def" data-metric-def="p98" style="display:none">
+            <p><b>P98.</b> 98% of samples are at or below this value — a strict tail.
+              Only the worst 2% are slower. Used when even occasional slowness is
+              unacceptable (interactive UI, real-time trading, voice).</p>
+            <p><b>Example.</b> P98 spike with stable P50 → outliers got way worse
+              while the median is unchanged; tail amplification.</p>
+            <p><b>Read it as.</b> "Even the slow users mostly do this well."</p>
+          </div>
+          <div class="awsref-metric-def" data-metric-def="p99" style="display:none">
+            <p><b>P99.</b> The worst 1% threshold. Always slower than P50; the gap
+              between P50 and P99 measures tail latency variance — high gap means
+              an unstable path, low gap means a consistent path.</p>
+            <p><b>Example.</b> P50 = 20 ms, P99 = 30 ms → tight (good). P50 = 20 ms,
+              P99 = 250 ms → spiky (investigate).</p>
+            <p><b>Read it as.</b> "This is what your unluckiest users experience."</p>
+          </div>
+          <div class="awsref-metric-def" data-metric-def="max" style="display:none">
+            <p><b>max.</b> The worst single sample observed in the window. Always
+              higher than P99. Includes brief, dramatic spikes (TCP retransmit,
+              transient route flap, GC pause on the agent).</p>
+            <p><b>Example.</b> max wildly above P99 → one-off outlier, probably not
+              repeatable; max close to P99 → tail is genuinely heavy.</p>
+            <p><b>Read it as.</b> "This is the worst it has ever been."</p>
+          </div>
+          <div class="awsref-metric-def" data-metric-def="stdev" style="display:none">
+            <p><b>stdev.</b> Standard deviation of all samples — a single number for
+              how "wide" the distribution is. Low stdev means a tight, predictable
+              path; high stdev means latency varies sample to sample.</p>
+            <p><b>Example.</b> Two paths both have P50 = 25 ms. Path A: stdev = 3,
+              Path B: stdev = 40 → A is steady; B is jittery and bad for
+              latency-sensitive workloads.</p>
+            <p><b>Read it as.</b> "How predictable is this latency?"</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Filter row -->
+    <div class="awsref-filter-grid">
+      <div class="awsref-filter-cell">
+        <label class="awsref-label" data-i18n="awsref_percentile">PERCENTILE</label>
+        <select id="awsrefPercentile" class="awsref-select"
+                onchange="onAwsRefFilterChange()">
+          <option value="p_10">P10</option>
+          <option value="p_25">P25</option>
+          <option value="p_50" selected>P50 (median)</option>
+          <option value="p_75">P75</option>
+          <option value="p_90">P90</option>
+          <option value="p_98">P98</option>
+          <option value="p_99">P99</option>
+        </select>
+      </div>
+      <div class="awsref-filter-cell">
+        <label class="awsref-label" data-i18n="awsref_timeframe">TIMEFRAME</label>
+        <select id="awsrefTimeframe" class="awsref-select"
+                onchange="onAwsRefFilterChange()">
+          <option value="1D" selected>1 Day</option>
+          <option value="1W">1 Week</option>
+          <option value="1M">1 Month</option>
+          <option value="1Y">1 Year</option>
+        </select>
+      </div>
+      <div class="awsref-filter-cell">
+        <label class="awsref-label" data-i18n="awsref_show">SHOW</label>
+        <select id="awsrefMatrixShow" class="awsref-select"
+                onchange="renderAwsRefMatrix()">
+          <option value="all" selected data-i18n="awsref_show_all">regions + LZs</option>
+          <option value="region" data-i18n="awsref_show_regions">regions only</option>
+          <option value="local-zone" data-i18n="awsref_show_lzs">LZs only</option>
+        </select>
+      </div>
+      <div class="awsref-filter-cell">
+        <label class="awsref-label" data-i18n="awsref_from_rows">↓ FROM (ROWS)</label>
+        <input type="text" id="awsrefMatrixFrom" class="awsref-search-input"
+               oninput="renderAwsRefMatrix()"
+               placeholder="us-east, eu, ap…" />
+      </div>
+      <div class="awsref-filter-cell">
+        <label class="awsref-label" data-i18n="awsref_to_cols">→ TO (COLUMNS)</label>
+        <input type="text" id="awsrefMatrixTo" class="awsref-search-input"
+               oninput="renderAwsRefMatrix()"
+               placeholder="eu, ap-south, ist…" />
+      </div>
+    </div>
+
+    <!-- Action row + status line -->
+    <div class="awsref-action-row">
+      <button type="button" class="awsref-load-btn" id="awsrefMatrixLoadBtn"
+              onclick="loadAwsRefMatrix(true)">
+        <span data-i18n="awsref_load_action">▶ Reload CloudPing matrix</span>
+      </button>
+      <div class="awsref-status-line" id="awsrefMatrixStatus"></div>
+    </div>
+
+    <!-- Honest disclosure: when the selected percentile/timeframe combo is
+         unavailable from the public scrape, we substitute P50/1D and tell the
+         user so they don't read the same numbers as different metrics. -->
+    <div class="awsref-substitution-banner" id="awsrefSubstitutionBanner"
+         style="display:none">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+        <line x1="12" y1="9" x2="12" y2="13"/>
+        <line x1="12" y1="17" x2="12.01" y2="17"/>
+      </svg>
+      <div>
+        <div class="awsref-sub-title" id="awsrefSubBannerTitle"></div>
+        <div class="awsref-sub-body" id="awsrefSubBannerBody"></div>
+      </div>
+    </div>
+
+    <!-- Color legend -->
+    <div class="awsref-legend">
+      <span class="awsref-legend-dot awsref-legend-good"></span>
+      <span data-i18n="awsref_legend_good">&lt; 100 ms</span>
+      <span class="awsref-legend-dot awsref-legend-mid"></span>
+      <span data-i18n="awsref_legend_mid">100-180 ms</span>
+      <span class="awsref-legend-dot awsref-legend-bad"></span>
+      <span data-i18n="awsref_legend_bad">&gt; 180 ms</span>
+      <span class="awsref-legend-dot awsref-legend-na"></span>
+      <span data-i18n="awsref_legend_na">n/a</span>
+      <span class="awsref-legend-spacer"></span>
+      <span class="awsref-scope-badge awsref-scope-regional" data-i18n="awsref_type_region">region</span>
+      <span style="color:var(--text-muted);font-size:10px">+</span>
+      <span class="awsref-scope-badge awsref-scope-lz-data-plane" data-i18n="awsref_type_lz">local-zone</span>
+    </div>
+
+    <!-- Matrix table -->
+    <div class="awsref-matrix-wrap">
+      <table class="awsref-matrix-table" id="awsrefMatrixTable">
+        <thead id="awsrefMatrixThead"></thead>
+        <tbody id="awsrefMatrixTBody">
+          <tr><td class="awsref-empty">
+            <span class="spinner"></span>
+            <span data-i18n="state_loading">Loading...</span>
+          </td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="/static/awsref/js/awsref.js?v=20260515i"></script>
+{% endblock %}

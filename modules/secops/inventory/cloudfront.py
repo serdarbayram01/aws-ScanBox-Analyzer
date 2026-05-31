@@ -45,6 +45,7 @@ def run_checks(session, exclude_defaults=False, regions=None):
             service=SERVICE, resource_id=dist_arn,
             resource_type='AWS::CloudFront::Distribution', region='global',
             frameworks={
+                        'SOC2': ['CC6.7'],
                 'CIS': ['2.1.2'], 'HIPAA': ['164.312(e)(1)'],
                 'ISO27001': ['A.14.1.2'],
                 'WAFR': {'pillar': 'Security', 'controls': ['SEC09']},
@@ -74,6 +75,7 @@ def run_checks(session, exclude_defaults=False, regions=None):
             service=SERVICE, resource_id=dist_arn,
             resource_type='AWS::CloudFront::Distribution', region='global',
             frameworks={
+                        'SOC2': ['CC6.7'],
                 'CIS': ['2.1.3'], 'HIPAA': ['164.312(e)(2)(ii)'],
                 'ISO27001': ['A.14.1.3'],
                 'WAFR': {'pillar': 'Security', 'controls': ['SEC09']},
@@ -102,6 +104,7 @@ def run_checks(session, exclude_defaults=False, regions=None):
             service=SERVICE, resource_id=dist_arn,
             resource_type='AWS::CloudFront::Distribution', region='global',
             frameworks={
+                        'SOC2': ['CC6.6'],
                 'CIS': ['2.1.4'], 'ISO27001': ['A.13.1.3'],
                 'WAFR': {'pillar': 'Security', 'controls': ['SEC06']},
             },
@@ -128,6 +131,7 @@ def run_checks(session, exclude_defaults=False, regions=None):
             service=SERVICE, resource_id=dist_arn,
             resource_type='AWS::CloudFront::Distribution', region='global',
             frameworks={
+                        'SOC2': ['CC7.2', 'CC2.1'],
                 'CIS': ['3.10'], 'HIPAA': ['164.312(b)'],
                 'ISO27001': ['A.12.4.1'],
                 'WAFR': {'pillar': 'Security', 'controls': ['SEC04']},
@@ -158,6 +162,7 @@ def run_checks(session, exclude_defaults=False, regions=None):
                     service=SERVICE, resource_id=dist_arn,
                     resource_type='AWS::CloudFront::Distribution', region='global',
                     frameworks={
+                                'SOC2': ['CC6.7'],
                         'CIS': ['2.1.2'], 'HIPAA': ['164.312(e)(1)'],
                         'ISO27001': ['A.14.1.2'],
                         'WAFR': {'pillar': 'Security', 'controls': ['SEC09']},
@@ -166,5 +171,82 @@ def run_checks(session, exclude_defaults=False, regions=None):
                     remediation_tr=f'"{origin_id}" kaynağının protokol politikasını "https-only" veya "match-viewer" olarak ayarlayın.',
                     details={'origin_protocol': origin_protocol},
                 ))
+
+        # --- Geo restriction (data residency / sanction compliance) ---
+        restrictions = dist.get('Restrictions', {}).get('GeoRestriction', {})
+        restriction_type = restrictions.get('RestrictionType', 'none')
+        geo_locations = restrictions.get('Items', [])
+        geo_on = restriction_type in ('whitelist', 'blacklist') and len(geo_locations) > 0
+        findings.append(make_finding(
+            id=f'cf_geo_restriction_{dist_id}',
+            title=f'CloudFront geo-restriction configured: {name}',
+            title_tr=f'CloudFront coğrafi kısıtlama yapılandırılmış: {name}',
+            description=(
+                f'CloudFront distribution {dist_id} geo-restriction type is "{restriction_type}". '
+                f'Geo-restriction enforces data-residency and sanction compliance by allowing or '
+                f'blocking specific countries at the edge. Recommended for regulated workloads.'
+            ),
+            description_tr=(
+                f'CloudFront dağıtımı {dist_id} coğrafi kısıtlama türü "{restriction_type}". '
+                f'Coğrafi kısıtlama, belirli ülkeleri edge\'de izin vererek veya engelleyerek '
+                f'veri ikametgâhı ve yaptırım uyumluluğunu zorlar. Regüle iş yükleri için önerilir.'
+            ),
+            severity='INFO' if geo_on else 'LOW',
+            status='PASS' if geo_on else 'WARNING',
+            service=SERVICE, resource_id=dist_arn,
+            resource_type='AWS::CloudFront::Distribution', region='global',
+            frameworks={
+                'ISO27001': ['A.18.1.4'],
+                'SOC2':     ['CC6.6'],
+                'WAFR':     {'pillar': 'Security', 'controls': ['SEC05']},
+            },
+            remediation=(
+                f'CloudFront → {dist_id} → Edit → Geographic restrictions → '
+                f'Allow / Block by country list as required by your data-residency policy.'
+            ),
+            remediation_tr=(
+                f'CloudFront → {dist_id} → Düzenle → Coğrafi kısıtlamalar → '
+                f'Veri ikametgâhı politikanıza göre ülke listesi izin / engelle.'
+            ),
+            details={'type': restriction_type, 'count': len(geo_locations)},
+        ))
+
+        # --- Origin Shield (DR + cost reduction) ---
+        for origin in origins:
+            origin_id = origin.get('Id', 'unknown')
+            shield_cfg = origin.get('OriginShield') or {}
+            shield_on  = bool(shield_cfg.get('Enabled'))
+            shield_region = shield_cfg.get('OriginShieldRegion', '')
+            findings.append(make_finding(
+                id=f'cf_origin_shield_{dist_id}_{origin_id}',
+                title=f'CloudFront Origin Shield: {name}/{origin_id}',
+                title_tr=f'CloudFront Origin Shield: {name}/{origin_id}',
+                description=(
+                    f'CloudFront distribution {dist_id} origin "{origin_id}" Origin Shield is '
+                    f'{"enabled in " + shield_region if shield_on else "disabled"}. Origin Shield '
+                    f'reduces origin load (lower DDoS blast radius) and decreases cross-edge traffic costs.'
+                ),
+                description_tr=(
+                    f'CloudFront dağıtımı {dist_id} kaynağı "{origin_id}" için Origin Shield '
+                    f'{"etkin (" + shield_region + ")" if shield_on else "etkin değil"}. Origin Shield, '
+                    f'kaynak yükünü azaltır (DDoS yarıçapı düşer) ve edge\'ler arası trafik maliyetini düşürür.'
+                ),
+                severity='LOW', status='PASS' if shield_on else 'WARNING',
+                service=SERVICE, resource_id=dist_arn,
+                resource_type='AWS::CloudFront::Distribution', region='global',
+                frameworks={
+                    'SOC2': ['A1.1', 'A1.2'],
+                    'WAFR': {'pillar': 'Reliability', 'controls': ['REL07', 'REL11']},
+                },
+                remediation=(
+                    f'CloudFront → {dist_id} → Origins → "{origin_id}" → Edit → '
+                    f'Origin Shield → Enabled → choose region closest to your origin.'
+                ),
+                remediation_tr=(
+                    f'CloudFront → {dist_id} → Origins → "{origin_id}" → Düzenle → '
+                    f'Origin Shield → Etkin → kaynağa en yakın bölgeyi seçin.'
+                ),
+                details={'enabled': shield_on, 'region': shield_region},
+            ))
 
     return findings

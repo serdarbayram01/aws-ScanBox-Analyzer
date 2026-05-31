@@ -11,10 +11,12 @@ from datetime import datetime
 
 CACHE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
 SCAN_DIR  = os.path.join(CACHE_DIR, 'scan_results')
+SUPPRESS_DIR = os.path.join(CACHE_DIR, 'suppressions')
 MAX_AGE   = 86400  # 24 hours
 
 os.makedirs(CACHE_DIR, exist_ok=True)
 os.makedirs(SCAN_DIR,  exist_ok=True)
+os.makedirs(SUPPRESS_DIR, exist_ok=True)
 
 
 # ---------------------------------------------------------------------------
@@ -83,6 +85,52 @@ def load_scan(profile: str):
 def _safe(name: str) -> str:
     """Sanitize profile name for filesystem use. Matches aws_client.validate_profile() charset."""
     return ''.join(c if c.isalnum() or c in '-_.' else '_' for c in name)
+
+
+# ---------------------------------------------------------------------------
+# Suppressions (per profile) — accepted-risk / false-positive findings
+# ---------------------------------------------------------------------------
+
+def _suppress_path(profile: str) -> str:
+    return os.path.join(SUPPRESS_DIR, f'{_safe(profile)}.json')
+
+
+def load_suppressions(profile: str) -> list:
+    """Return list of suppression entries; empty list on missing file."""
+    try:
+        with open(_suppress_path(profile)) as f:
+            return json.load(f) or []
+    except Exception:
+        return []
+
+
+def save_suppressions(profile: str, entries: list) -> None:
+    with open(_suppress_path(profile), 'w') as f:
+        json.dump(entries, f, indent=2, ensure_ascii=False)
+
+
+def add_suppression(profile: str, finding_id: str, reason: str, user: str = '') -> dict:
+    """Insert (or replace) a suppression. Returns the saved entry."""
+    entries = load_suppressions(profile)
+    entries = [e for e in entries if e.get('finding_id') != finding_id]
+    entry = {
+        'finding_id': finding_id,
+        'reason':     reason or '',
+        'user':       user or '',
+        'created_at': datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ'),
+    }
+    entries.append(entry)
+    save_suppressions(profile, entries)
+    return entry
+
+
+def remove_suppression(profile: str, finding_id: str) -> bool:
+    entries = load_suppressions(profile)
+    new_entries = [e for e in entries if e.get('finding_id') != finding_id]
+    if len(new_entries) == len(entries):
+        return False
+    save_suppressions(profile, new_entries)
+    return True
 
 
 def list_scans() -> list:

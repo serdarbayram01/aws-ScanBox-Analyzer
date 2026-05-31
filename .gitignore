@@ -38,13 +38,19 @@ reports/*
 
 # Cached scan results (user-specific data)
 modules/secops/data/scan_results/*
+modules/secops/data/suppressions/*
 modules/mapinventory/data/scan_results/*
 modules/topology/data/scan_results/*
 modules/advice/data/scan_results/*
 !modules/*/data/scan_results/.gitkeep
+!modules/secops/data/suppressions/.gitkeep
 
 # Reference / development materials (not part of the app)
 Referance/
+0-Referans/
+
+# Session handover notes (local, not part of releases)
+HANDOVER.md
 
 # Claude Code
 .claude/

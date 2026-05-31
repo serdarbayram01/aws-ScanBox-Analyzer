@@ -166,19 +166,22 @@ def api_detail():
     kw = dict(start_date=start_date, end_date=end_date) if (start_date and end_date) else {}
 
     threads = [
-        threading.Thread(target=run, args=('costs',   awsc.fetch_profile_costs,       profile, months_back), kwargs=kw),
-        threading.Thread(target=run, args=('regions', awsc.fetch_region_distribution, profile, months_back), kwargs=kw),
-        threading.Thread(target=run, args=('budgets', awsc.fetch_budgets,             profile)),
-        threading.Thread(target=run, args=('ec2',     awsc.fetch_ec2_inventory,       profile)),
-        threading.Thread(target=run, args=('credits', awsc.fetch_credits,             profile)),
+        threading.Thread(target=run, args=('costs',    awsc.fetch_profile_costs,       profile, months_back), kwargs=kw),
+        threading.Thread(target=run, args=('regions',  awsc.fetch_region_distribution, profile, months_back), kwargs=kw),
+        threading.Thread(target=run, args=('budgets',  awsc.fetch_budgets,             profile)),
+        threading.Thread(target=run, args=('ec2',      awsc.fetch_ec2_inventory,       profile)),
+        threading.Thread(target=run, args=('credits',  awsc.fetch_credits,             profile)),
+        threading.Thread(target=run, args=('savings',  awsc.fetch_savings_summary,     profile)),
     ]
     for t in threads: t.start()
-    for t in threads: t.join(timeout=30)
+    # savings summary fans out across all regions + 4 CE calls; give it a bit
+    # more headroom than the other branches.
+    for t in threads: t.join(timeout=90)
 
     # Check for timed-out threads
     for t in threads:
         if t.is_alive():
-            _logger.warning('Thread %s timed out after 30s', t.name)
+            _logger.warning('Thread %s timed out after 90s', t.name)
 
     return jsonify({
         'status':  'ok',
@@ -188,7 +191,25 @@ def api_detail():
         'budgets': results.get('budgets', {'status': 'error', 'error': errors.get('budgets', 'unknown')}),
         'ec2':     results.get('ec2',     {'status': 'error', 'error': errors.get('ec2',     'unknown')}),
         'credits': results.get('credits', {'status': 'error', 'error': errors.get('credits', 'unknown')}),
+        'savings': results.get('savings', {'status': 'error', 'error': errors.get('savings', 'unknown')}),
     })
+
+
+@finops_bp.route('/finops/api/savings')
+def api_savings():
+    """Standalone endpoint for the Savings Opportunities block.
+
+    Mirrors the same logic as /finops/api/detail's `savings` field but lets
+    the frontend lazy-load it independently if a long detail call is in flight.
+    """
+    profile = request.args.get('profile', '')
+    if not profile or not _valid_profile(profile):
+        return jsonify({'status': 'error', 'error': 'Valid profile name required'}), 400
+    _logger.info('Savings requested for profile=%s', profile)
+    try:
+        return jsonify(awsc.fetch_savings_summary(profile))
+    except Exception as exc:
+        return jsonify({'status': 'error', 'error': str(exc)}), 500
 
 
 @finops_bp.route('/finops/api/cost-report')

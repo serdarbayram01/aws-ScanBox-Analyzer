@@ -58,7 +58,8 @@ _RATE_WINDOW = 60      # window in seconds
 @app.before_request
 def _rate_limit_check():
     if not request.path.startswith(('/finops/api/', '/secops/api/', '/mapinventory/api/',
-                                     '/topology/api/', '/advice/api/', '/health/api/')):
+                                     '/topology/api/', '/advice/api/', '/health/api/',
+                                     '/news/api/', '/awsref/api/')):
         return  # only limit API endpoints
     ip = request.remote_addr or '127.0.0.1'
     now = _time.time()
@@ -102,6 +103,8 @@ def _wants_json():
         request.path.startswith('/topology/api/') or
         request.path.startswith('/advice/api/') or
         request.path.startswith('/health/api/') or
+        request.path.startswith('/news/api/') or
+        request.path.startswith('/awsref/api/') or
         request.accept_mimetypes.best == 'application/json'
     )
 
@@ -130,7 +133,7 @@ def inject_active_module():
     module = 'finops'
     if request.blueprints:
         bp_name = request.blueprints[-1]
-        if bp_name in ('finops', 'secops', 'mapinventory', 'topology', 'advice', 'health', 'enjoy', 'about'):
+        if bp_name in ('finops', 'secops', 'mapinventory', 'topology', 'advice', 'health', 'news', 'awsref', 'enjoy', 'about'):
             module = bp_name
     return {'active_module': module, 'app_version': APP_VERSION}
 
@@ -145,6 +148,8 @@ from modules.mapinventory.routes import mapinventory_bp  # noqa: E402
 from modules.topology.routes import topology_bp            # noqa: E402
 from modules.advice.routes import advice_bp                # noqa: E402
 from modules.health.routes import health_bp                # noqa: E402
+from modules.news.routes import news_bp                    # noqa: E402
+from modules.awsref.routes import awsref_bp                # noqa: E402
 from modules.enjoy.routes import enjoy_bp                  # noqa: E402
 from modules.about.routes import about_bp                  # noqa: E402
 
@@ -153,6 +158,8 @@ app.register_blueprint(secops_bp)
 app.register_blueprint(mapinventory_bp)
 app.register_blueprint(topology_bp)
 app.register_blueprint(advice_bp)
+app.register_blueprint(news_bp)
+app.register_blueprint(awsref_bp)
 app.register_blueprint(health_bp)
 app.register_blueprint(enjoy_bp)
 app.register_blueprint(about_bp)

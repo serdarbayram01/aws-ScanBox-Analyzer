@@ -46,6 +46,7 @@ const STEP_LABELS = {
 
 /* ── State ── */
 let _profiles         = [];        // sorted profile name strings
+let _profileSearch    = '';        // active search filter (case-insensitive substring)
 let _ssoSet           = new Set(); // SSO-enabled profile names
 let _selectedProfile  = null;      // single selected profile
 let _favorites        = new Set(JSON.parse(localStorage.getItem(FAV_KEY) || '[]'));
@@ -106,6 +107,30 @@ async function loadProfiles() {
   }
 }
 
+// Filter the master profile list by the active search query.
+function getFilteredProfiles() {
+  if (!_profileSearch) return _profiles;
+  const q = _profileSearch.toLowerCase();
+  return _profiles.filter(p => p.toLowerCase().includes(q));
+}
+
+// Wired to the search input via oninput in advice/index.html.
+function onAdviceProfileSearch(value) {
+  _profileSearch = value || '';
+  renderProfileGrid();
+  const clearBtn = document.getElementById('adviceProfileSearchClear');
+  if (clearBtn) clearBtn.style.display = _profileSearch ? 'flex' : 'none';
+}
+
+function clearAdviceProfileSearch() {
+  const input = document.getElementById('adviceProfileSearchInput');
+  if (input) input.value = '';
+  _profileSearch = '';
+  renderProfileGrid();
+  const clearBtn = document.getElementById('adviceProfileSearchClear');
+  if (clearBtn) clearBtn.style.display = 'none';
+}
+
 function renderProfileGrid() {
   const container = document.getElementById('profileList');
   if (!container) return;
@@ -116,10 +141,18 @@ function renderProfileGrid() {
   const countEl = document.getElementById('profileCount');
   if (countEl) countEl.textContent = _profiles.length;
 
-  const numCols = Math.ceil(_profiles.length / ROWS_PER_COL);
+  const filtered = getFilteredProfiles();
+  if (_profileSearch && !filtered.length) {
+    container.innerHTML = `<div style="color:var(--text-muted);font-size:13px;padding:10px;grid-column:1/-1">${t('profile_no_match') || 'No matching profiles found'}</div>`;
+    return;
+  }
+
+  const numCols = Math.ceil(filtered.length / ROWS_PER_COL);
   const colsHtml = Array.from({ length: numCols }, (_, ci) => {
-    const rows = _profiles.slice(ci * ROWS_PER_COL, ci * ROWS_PER_COL + ROWS_PER_COL)
+    const rows = filtered.slice(ci * ROWS_PER_COL, ci * ROWS_PER_COL + ROWS_PER_COL)
       .map((p, ri) => {
+        // The data-idx must reference the FILTERED list so click handlers
+        // can resolve the profile name via filtered[idx] below.
         const idx     = ci * ROWS_PER_COL + ri;
         const sel     = p === _selectedProfile;
         const starred = _favorites.has(p);
@@ -138,11 +171,13 @@ function renderProfileGrid() {
 
   container.innerHTML = colsHtml;
 
-  // Event delegation
+  // Event delegation — resolve through the FILTERED list since data-idx is
+  // built from the filtered slice (not the master _profiles array).
   container.onclick = (e) => {
     const row = e.target.closest('.profile-row[data-idx]');
     if (!row) return;
-    const name = _profiles[parseInt(row.dataset.idx, 10)];
+    const name = filtered[parseInt(row.dataset.idx, 10)];
+    if (!name) return;
     if (e.target.closest('[data-star]')) {
       toggleFavorite(name);
     } else {

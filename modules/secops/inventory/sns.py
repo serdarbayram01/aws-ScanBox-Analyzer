@@ -38,6 +38,7 @@ def run_checks(session, exclude_defaults=False, regions=None):
                             service=SERVICE, resource_id=arn,
                             resource_type='AWS::SNS::Topic', region=region,
                             frameworks={
+                                        'SOC2': ['CC6.7', 'C1.2'],
                                 'HIPAA': ['164.312(a)(2)(iv)'],
                                 'ISO27001': ['A.10.1.1'],
                                 'WAFR': {'pillar': 'Security', 'controls': ['SEC08']},
@@ -67,6 +68,7 @@ def run_checks(session, exclude_defaults=False, regions=None):
                                             service=SERVICE, resource_id=arn,
                                             resource_type='AWS::SNS::Topic', region=region,
                                             frameworks={
+                                                        'SOC2': ['CC6.6'],
                                                 'CIS': ['1.22'], 'ISO27001': ['A.9.4.1'],
                                                 'WAFR': {'pillar': 'Security', 'controls': ['SEC03']},
                                             },

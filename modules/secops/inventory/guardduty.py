@@ -26,7 +26,8 @@ def run_checks(session, exclude_defaults=False, regions=None):
                     severity='HIGH', status='FAIL',
                     service=SERVICE, resource_id=region,
                     resource_type='AWS::GuardDuty::Detector', region=region,
-                    frameworks={'CIS': ['3.8'], 'HIPAA': ['164.312(b)'],
+                    frameworks={
+                                'SOC2': ['CC7.2', 'CC3.2'],'CIS': ['3.8'], 'HIPAA': ['164.312(b)'],
                                 'ISO27001': ['A.16.1.2'],
                                 'WAFR': {'pillar': 'Security', 'controls': ['SEC04']}},
                     remediation=f'GuardDuty Console ({region}) → Enable GuardDuty.',
@@ -46,7 +47,8 @@ def run_checks(session, exclude_defaults=False, regions=None):
                 severity='HIGH', status='PASS' if enabled else 'FAIL',
                 service=SERVICE, resource_id=did,
                 resource_type='AWS::GuardDuty::Detector', region=region,
-                frameworks={'CIS': ['3.8'], 'ISO27001': ['A.16.1.2'],
+                frameworks={
+                            'SOC2': ['CC7.2', 'CC3.2'],'CIS': ['3.8'], 'ISO27001': ['A.16.1.2'],
                             'WAFR': {'pillar': 'Security', 'controls': ['SEC04']}},
                 remediation='Enable GuardDuty in all regions.',
                 remediation_tr='Tüm bölgelerde GuardDuty\'ı etkinleştirin.',
@@ -78,7 +80,8 @@ def run_checks(session, exclude_defaults=False, regions=None):
                             severity=sev_str, status='FAIL',
                             service=SERVICE, resource_id=gdf['Id'],
                             resource_type='AWS::GuardDuty::Finding', region=region,
-                            frameworks={'HIPAA': ['164.312(b)'], 'ISO27001': ['A.16.1.5'],
+                            frameworks={
+                                        'SOC2': ['CC7.2', 'CC3.2'],'HIPAA': ['164.312(b)'], 'ISO27001': ['A.16.1.5'],
                                         'WAFR': {'pillar': 'Security', 'controls': ['SEC04']}},
                             remediation='Investigate and remediate the GuardDuty finding.',
                             remediation_tr='GuardDuty bulgusunu araştırın ve düzeltin.',

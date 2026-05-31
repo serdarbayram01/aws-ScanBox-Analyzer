@@ -12,6 +12,7 @@ from flask import Blueprint, jsonify, request, render_template, send_from_direct
 
 from . import cache
 from . import collector
+from . import architecture_view
 
 REPORTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'reports')
 os.makedirs(REPORTS_DIR, exist_ok=True)
@@ -396,3 +397,149 @@ def api_reports_generate_all():
         filenames['pdf'] = None
 
     return jsonify({'status': 'ok', 'filenames': filenames, 'ts': ts})
+
+
+
+# ---------------------------------------------------------------------------
+# API — Architecture View (drawio + SVG export)
+# ---------------------------------------------------------------------------
+
+def _arch_load_scan(profile):
+    if not profile:
+        return None, ('profile required', 400)
+    results, _ = cache.load_scan(profile)
+    if not results:
+        return None, ('no cached scan for this profile', 404)
+    return results, None
+
+
+@topology_bp.route('/topology/api/architecture/list')
+def api_architecture_list():
+    """Return the list of VPCs in the cached scan, suitable for a dropdown."""
+    profile = request.args.get('profile', '')
+    results, err = _arch_load_scan(profile)
+    if err:
+        msg, code = err
+        return jsonify({'status': 'error', 'error': msg}), code
+
+    rs = results.get('resources', [])
+    vpcs = [r for r in rs if r.get('type') == 'vpc']
+
+    out = []
+    for vpc in vpcs:
+        vid = vpc.get('id', '')
+        subnets = [r for r in rs
+                   if r.get('type') == 'subnet' and r.get('vpc_id') == vid]
+        azs = sorted({s.get('az', '') for s in subnets if s.get('az')})
+        out.append({
+            'vpc_id':       vid,
+            'name':         vpc.get('name') or vid,
+            'region':       vpc.get('region', ''),
+            'cidr':         vpc.get('cidr', ''),
+            'subnet_count': len(subnets),
+            'az_count':     len(azs),
+        })
+    out.sort(key=lambda v: (v['region'], v['vpc_id']))
+    return jsonify({'status': 'ok', 'vpcs': out})
+
+
+@topology_bp.route('/topology/api/architecture/svg')
+def api_architecture_svg():
+    """Serve the inline SVG render for one VPC."""
+    profile = request.args.get('profile', '')
+    vpc_id  = request.args.get('vpc_id', '')
+    theme   = request.args.get('theme', 'dark')
+    if theme not in ('dark', 'light'):
+        theme = 'dark'
+
+    results, err = _arch_load_scan(profile)
+    if err:
+        msg, code = err
+        return jsonify({'status': 'error', 'error': msg}), code
+    if not vpc_id:
+        return jsonify({'status': 'error', 'error': 'vpc_id required'}), 400
+
+    root = architecture_view.build_hierarchy(results, vpc_id)
+    if root is None:
+        return jsonify({'status': 'error', 'error': 'vpc not found in scan'}), 404
+    svg = architecture_view.to_svg(root, theme=theme)
+    return svg, 200, {
+        'Content-Type':  'image/svg+xml; charset=utf-8',
+        'Cache-Control': 'no-store',
+    }
+
+
+@topology_bp.route('/topology/api/architecture/inventory')
+def api_architecture_inventory():
+    """Every resource in the cached scan, grouped by type.
+
+    Query params:
+      profile (required) — scan profile.
+      vpc_id  (optional) — when present, restrict to that VPC's resources
+                           (and global / untagged resources).
+    """
+    profile = request.args.get('profile', '')
+    vpc_id  = request.args.get('vpc_id', '')
+
+    results, err = _arch_load_scan(profile)
+    if err:
+        msg, code = err
+        return jsonify({'status': 'error', 'error': msg}), code
+
+    rs = results.get('resources', [])
+    if vpc_id:
+        rs = [r for r in rs
+              if (not r.get('vpc_id')) or r.get('vpc_id') == vpc_id]
+
+    groups = {}
+    for r in rs:
+        t = r.get('type') or 'unknown'
+        groups.setdefault(t, []).append({
+            'id':            r.get('id') or '',
+            'name':          r.get('name') or r.get('id') or '',
+            'region':        r.get('region') or '',
+            'az':            r.get('az') or '',
+            'vpc_id':        r.get('vpc_id') or '',
+            'subnet_id':     r.get('subnet_id') or '',
+            'state':         r.get('state') or r.get('status') or '',
+            'cidr':          r.get('cidr') or '',
+            'instance_type': r.get('instance_type') or r.get('instance_class') or r.get('lb_type') or '',
+            'engine':        r.get('engine') or r.get('runtime') or '',
+            'private_ip':    r.get('private_ip') or '',
+            'public_ip':     r.get('public_ip') or '',
+            'description':   r.get('description') or r.get('endpoint') or '',
+            'tags':          r.get('tags') or {},
+        })
+
+    out = [{'type': t, 'count': len(groups[t]), 'items': groups[t]}
+           for t in sorted(groups.keys())]
+    total = sum(g['count'] for g in out)
+    return jsonify({'status': 'ok', 'profile': profile, 'vpc_id': vpc_id,
+                    'total': total, 'groups': out})
+
+
+@topology_bp.route('/topology/api/architecture/drawio')
+def api_architecture_drawio():
+    """Serve the .drawio (mxGraphModel) export for one VPC."""
+    profile = request.args.get('profile', '')
+    vpc_id  = request.args.get('vpc_id', '')
+
+    results, err = _arch_load_scan(profile)
+    if err:
+        msg, code = err
+        return jsonify({'status': 'error', 'error': msg}), code
+    if not vpc_id:
+        return jsonify({'status': 'error', 'error': 'vpc_id required'}), 400
+
+    root = architecture_view.build_hierarchy(results, vpc_id)
+    if root is None:
+        return jsonify({'status': 'error', 'error': 'vpc not found in scan'}), 404
+    xml = architecture_view.to_drawio(root)
+
+    # Sanitize filename — vpc_id is alphanumeric+hyphen so safe, but be defensive.
+    safe = re.sub(r'[^A-Za-z0-9_\-]', '', vpc_id) or 'topology'
+    return xml, 200, {
+        'Content-Type':        'application/xml; charset=utf-8',
+        'Content-Disposition': f'attachment; filename="topology-{safe}.drawio"',
+        'Cache-Control':       'no-store',
+    }

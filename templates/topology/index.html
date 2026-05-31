@@ -215,6 +215,24 @@
       </div>
     </div>
 
+    <!-- ═══ View tabs (Interactive / Architecture) ═══ -->
+    <div class="topo-tabbar" id="topoTabBar" role="tablist">
+      <button class="topo-tab is-active" data-tab="interactive" role="tab" aria-selected="true">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        <span data-i18n="topology_view_interactive">Interactive</span>
+      </button>
+      <button class="topo-tab" data-tab="architecture" role="tab" aria-selected="false">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+          <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+        </svg>
+        <span data-i18n="topology_view_architecture">Architecture View</span>
+      </button>
+    </div>
+
+    <div id="topoInteractiveView">
     <!-- Toolbar -->
     <div class="chart-card" style="margin-top:12px">
       <div class="topo-toolbar">
@@ -324,6 +342,101 @@
       <div id="cyTooltip" class="topo-tooltip" style="display:none"></div>
       <!-- Node detail panel -->
       <div id="nodeDetail" class="topo-node-detail" style="display:none"></div>
+    </div>
+    </div><!-- /topoInteractiveView -->
+
+    <!-- ═══ Architecture View (drawio + SVG export) ═══ -->
+    <div id="topoArchitectureView" style="display:none">
+      <div class="chart-card" style="margin-top:12px">
+        <div class="arch-toolbar">
+          <select id="archVpcSelect" class="topo-select" style="min-width:280px">
+            <option value="" data-i18n="topology_arch_select_vpc">Select a VPC</option>
+          </select>
+          <button class="btn-sm arch-btn" id="archDownloadDrawio">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span data-i18n="topology_arch_download_drawio">Download .drawio</span>
+          </button>
+          <button class="btn-sm arch-btn arch-btn-primary" id="archOpenDrawio">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+            <span data-i18n="topology_arch_open_drawio">Open in diagrams.net</span>
+          </button>
+          <button class="btn-sm arch-btn" id="archDownloadSvg">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span data-i18n="topology_arch_download_svg">Download SVG</span>
+          </button>
+          <button class="btn-sm arch-btn" id="archDownloadPng">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span data-i18n="topology_arch_download_png">Download PNG</span>
+          </button>
+        </div>
+        <div class="arch-legend">
+          <span data-i18n="topology_arch_legend">Color Legend</span>:
+          <span class="arch-legend-item arch-legend-region"><span class="arch-legend-swatch"></span><span data-i18n="topology_arch_legend_region">Region</span></span>
+          <span class="arch-legend-item arch-legend-vpc"><span class="arch-legend-swatch"></span><span data-i18n="topology_arch_legend_vpc">VPC</span></span>
+          <span class="arch-legend-item arch-legend-az"><span class="arch-legend-swatch"></span><span data-i18n="topology_arch_legend_az">Availability Zone</span></span>
+          <span class="arch-legend-item arch-legend-public"><span class="arch-legend-swatch"></span><span data-i18n="topology_arch_legend_public">Public Subnet</span></span>
+          <span class="arch-legend-item arch-legend-private"><span class="arch-legend-swatch"></span><span data-i18n="topology_arch_legend_private">Private Subnet</span></span>
+        </div>
+      </div>
+
+      <!-- Inventory summary card — collapsible accordion, closed by default.
+           Click the head (outside the toolbar) toggles open/closed. -->
+      <div class="chart-card arch-inventory" id="archInventoryCard">
+        <div class="arch-inventory-head" id="archInventoryHead" role="button" tabindex="0">
+          <div style="display:flex;align-items:center;gap:8px">
+            <svg class="arch-inv-chevron" width="13" height="13" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"
+                 aria-hidden="true">
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+            <strong data-i18n="topology_arch_inventory_title">Inventory</strong>
+            <span class="arch-inventory-meta" id="archInventoryMeta"></span>
+          </div>
+          <div class="arch-inventory-toolbar" onclick="event.stopPropagation()">
+            <input type="text" id="archInventoryFilter"
+                   class="topo-search-input"
+                   data-i18n="topology_arch_inventory_search"
+                   placeholder="Filter resources..." />
+            <button class="btn-sm" id="archInventoryExpandAll" data-i18n="topology_arch_inventory_expand">Expand all</button>
+            <button class="btn-sm" id="archInventoryCollapseAll" data-i18n="topology_arch_inventory_collapse">Collapse all</button>
+          </div>
+        </div>
+        <div class="arch-inventory-body" id="archInventoryBody"></div>
+      </div>
+
+      <div class="chart-card arch-svg-card" id="archSvgCard">
+        <div class="arch-svg-status" id="archSvgStatus">
+          <span data-i18n="topology_arch_select_vpc">Select a VPC</span>
+        </div>
+        <div class="arch-svg-stage" id="archSvgStage">
+          <div id="archSvgContainer"></div>
+        </div>
+        <!-- Floating zoom / pan control (mirrors the Interactive view's panel) -->
+        <div class="arch-map-controls" id="archMapControls">
+          <button class="arch-map-btn" id="archFullscreenBtn" title="Fullscreen">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+          </button>
+          <button class="arch-map-btn" id="archZoomInBtn" title="Zoom in">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </button>
+          <div class="arch-zoom-slider-wrap">
+            <input type="range" id="archZoomSlider" class="arch-zoom-slider"
+                   min="20" max="300" value="100" step="5"
+                   title="Zoom level"
+                   orient="vertical">
+          </div>
+          <button class="arch-map-btn" id="archZoomOutBtn" title="Zoom out">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </button>
+          <button class="arch-map-btn" id="archFitBtn" title="Fit to screen">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M3 9h18"/></svg>
+          </button>
+          <button class="arch-map-btn" id="archResetBtn" title="Reset view">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+          </button>
+          <div class="arch-zoom-readout" id="archZoomReadout">100%</div>
+        </div>
+      </div>
     </div>
 
   </div><!-- /topoResults -->
@@ -455,7 +568,9 @@
 {% endblock %}
 
 {% block extra_scripts %}
+<link rel="stylesheet" href="/static/topology/css/architecture-view.css?v=20260427">
 <script src="https://cdn.jsdelivr.net/npm/@joint/core@4.2.4/dist/joint.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/elkjs@0.11.1/lib/elk.bundled.js"></script>
 <script src="/static/topology/js/topology.js"></script>
+<script src="/static/topology/js/architecture-view.js?v=20260427"></script>
 {% endblock %}

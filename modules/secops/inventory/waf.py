@@ -49,6 +49,7 @@ def run_checks(session, exclude_defaults=False, regions=None):
                             service=SERVICE, resource_id=acl_arn,
                             resource_type='AWS::WAFv2::WebACL', region=region,
                             frameworks={
+                                        'SOC2': ['CC6.6'],
                                 'CIS': ['2.5'], 'ISO27001': ['A.13.1.3'],
                                 'WAFR': {'pillar': 'Security', 'controls': ['SEC06']},
                             },
@@ -76,6 +77,7 @@ def run_checks(session, exclude_defaults=False, regions=None):
                             service=SERVICE, resource_id=acl_arn,
                             resource_type='AWS::WAFv2::WebACL', region=region,
                             frameworks={
+                                        'SOC2': ['CC7.2', 'CC2.1'],
                                 'CIS': ['3.10'], 'HIPAA': ['164.312(b)'],
                                 'ISO27001': ['A.12.4.1'],
                                 'WAFR': {'pillar': 'Security', 'controls': ['SEC04']},

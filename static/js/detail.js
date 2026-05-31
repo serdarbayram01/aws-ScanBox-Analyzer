@@ -38,8 +38,11 @@ async function loadDetail() {
   showLoading(true);
 
   try {
-    const { start, end } = _mtdRange();
-    const url = `/finops/api/detail?profile=${encodeURIComponent(_profile)}&start=${start}&end=${end}`;
+    // Use the 6-month default window for service/region breakdowns. The
+    // backend still returns the MTD figures (current_spend / projection)
+    // independently. Passing start/end would scope every chart to the
+    // current month — which on credit-covered accounts collapses to ~$0.
+    const url = `/finops/api/detail?profile=${encodeURIComponent(_profile)}&months=6`;
     const resp = await fetch(url);
     _detailData = await resp.json();
     renderAll(_detailData);
@@ -57,11 +60,13 @@ function renderAll(data) {
   const budgets = data.budgets || {};
   const ec2     = data.ec2     || {};
   const credits = data.credits || {};
+  const savings = data.savings || {};
 
   renderMetricCards(costs);
   renderCredits(credits);
   renderServiceCharts(costs);
   renderRegionChart(regions);
+  renderSavingsOpportunities(savings);
   renderBudgets(budgets);
   renderAuditSummary(ec2);
   renderEC2(ec2);
@@ -1344,11 +1349,259 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// Savings Opportunities — KPI strip + sorted bar + SP/RI gauges + tag donut +
+// per-category tables. Driven by aws_client.fetch_savings_summary().
+// ---------------------------------------------------------------------------
+
+let _savingsBarChart = null;
+let _tagCoverageChart = null;
+
+const SAVINGS_LABELS_TR = {
+  'Unattached EBS Volumes':     'Bağsız EBS Volume',
+  'Unassociated Elastic IPs':   'Atanmamış Elastic IP',
+  'Long-Stopped EC2 Instances': 'Uzun Süredir Kapalı EC2',
+  'Idle NAT Gateways':          'Atıl NAT Gateway',
+  'Empty Load Balancers':       'Hedefsiz Load Balancer',
+  'Orphan RDS Snapshots':       'Sahipsiz RDS Snapshot',
+  'Underutilized EC2 (CPU<5%)': 'Düşük Kullanılan EC2 (CPU<%5)',
+};
+
+function _savingsLabel(name) {
+  if (typeof getLang === 'function' && getLang() === 'tr') {
+    return SAVINGS_LABELS_TR[name] || name;
+  }
+  return name;
+}
+
+function renderSavingsOpportunities(savings) {
+  const section = document.getElementById('savingsSection');
+  if (!section) return;
+  if (!savings || savings.status !== 'success') {
+    section.style.display = 'none';
+    return;
+  }
+  section.style.display = '';
+
+  // 1) KPI strip (4 cards)
+  const total = savings.total_monthly_savings || 0;
+  const idle  = savings.idle_resource_count   || 0;
+  const sp    = savings.savings_plan_coverage || {};
+  const ri    = savings.reservation_coverage  || {};
+  const tag   = savings.tag_coverage          || {};
+  const fc    = savings.cost_forecast         || {};
+
+  const kpiColor = (good, value) => good ? '#16a34a' : (value > 0 ? '#dc2626' : '#6b7280');
+  const fmt$ = (n) => '$' + (n || 0).toLocaleString(undefined, { maximumFractionDigits: 0 });
+
+  const kpiHtml = [
+    {
+      label: t('finops_savings_total'),
+      value: fmt$(total),
+      color: kpiColor(total === 0, total),
+    },
+    {
+      label: t('finops_savings_idle'),
+      value: idle,
+      color: kpiColor(idle === 0, idle),
+    },
+    sp.status === 'success' ? {
+      label: t('finops_savings_sp_coverage'),
+      value: (sp.coverage_pct || 0) + '%',
+      color: (sp.coverage_pct || 0) >= 50 ? '#16a34a' : '#d97706',
+    } : null,
+    tag.status === 'success' ? {
+      label: t('finops_savings_tag_coverage'),
+      value: (tag.tagged_pct || 0) + '%',
+      color: (tag.tagged_pct || 0) >= 80 ? '#16a34a' : (tag.tagged_pct || 0) >= 60 ? '#d97706' : '#dc2626',
+    } : null,
+  ].filter(Boolean);
+
+  document.getElementById('savingsKpiStrip').innerHTML = kpiHtml.map(k =>
+    '<div class="metric-card" style="text-align:center;padding:12px">' +
+      '<div style="font-size:22px;font-weight:700;color:' + k.color + '">' + escapeHtml(String(k.value)) + '</div>' +
+      '<div style="font-size:11px;color:var(--text-muted);margin-top:4px;text-transform:uppercase;letter-spacing:.5px">' +
+        escapeHtml(k.label) + '</div>' +
+    '</div>'
+  ).join('');
+
+  // Total badge in header
+  const badge = document.getElementById('savingsTotalBadge');
+  if (badge) {
+    badge.textContent = fmt$(total) + '/mo';
+    badge.style.display = total > 0 ? '' : 'none';
+    badge.style.background = total > 0 ? '#dc2626' : '#16a34a';
+  }
+
+  // 2) Sorted savings bar
+  const cats = (savings.categories || []).filter(c => (c.monthly_cost || 0) > 0 || c.count > 0);
+  const ctx = document.getElementById('savingsBarChart');
+  if (ctx && cats.length) {
+    if (_savingsBarChart) _savingsBarChart.destroy();
+    const cc = getChartColors();
+    _savingsBarChart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: cats.map(c => _savingsLabel(c.label)),
+        datasets: [{
+          label: t('finops_savings_monthly'),
+          data: cats.map(c => c.monthly_cost || 0),
+          backgroundColor: cats.map(c => (c.monthly_cost || 0) > 30 ? '#dc2626'
+                                       : (c.monthly_cost || 0) > 5 ? '#d97706' : '#65a30d'),
+          borderRadius: 4,
+        }],
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: (c) => '$' + c.raw.toFixed(2) + '/mo  (' + cats[c.dataIndex].count + ' resources)',
+            },
+          },
+        },
+        scales: {
+          x: { ticks: { color: cc.text, callback: (v) => '$' + v }, grid: { color: cc.grid } },
+          y: { ticks: { color: cc.text }, grid: { display: false } },
+        },
+        onClick(_evt, elements) {
+          if (!elements.length) return;
+          const cat = cats[elements[0].index];
+          const target = document.getElementById('savings-cat-' + cat.key);
+          if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        },
+      },
+    });
+  }
+
+  // 3) SP / RI gauges
+  document.getElementById('spCoverageWrap').innerHTML = _coverageGauge(
+    t('finops_savings_sp_coverage_full'),
+    sp.status === 'success' ? sp.coverage_pct : null,
+    sp.on_demand_eligible
+      ? '$' + sp.on_demand_eligible.toLocaleString(undefined, {maximumFractionDigits: 0}) + ' ' +
+        t('finops_savings_eligible')
+      : (sp.reason || ''),
+  );
+  document.getElementById('riCoverageWrap').innerHTML = _coverageGauge(
+    t('finops_savings_ri_coverage_full'),
+    ri.status === 'success' ? ri.coverage_pct : null,
+    ri.reason || '',
+  );
+
+  // 4) Tag coverage donut
+  const tagCtx = document.getElementById('tagCoverageWrap');
+  if (tagCtx && tag.status === 'success') {
+    tagCtx.innerHTML = '<canvas id="tagCoverageChart"></canvas>' +
+      '<div style="position:absolute;top:8px;left:0;right:0;text-align:center;font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">' +
+      escapeHtml(t('finops_savings_tag_coverage_full')) + '</div>';
+    const c = document.getElementById('tagCoverageChart');
+    if (_tagCoverageChart) _tagCoverageChart.destroy();
+    const tagged = tag.fully_tagged || 0;
+    const untagged = (tag.total_resources || 0) - tagged;
+    _tagCoverageChart = new Chart(c, {
+      type: 'doughnut',
+      data: {
+        labels: [
+          t('finops_savings_tagged'),
+          t('finops_savings_untagged'),
+        ],
+        datasets: [{
+          data: [tagged, untagged],
+          backgroundColor: ['#16a34a', '#dc2626'],
+          borderWidth: 0,
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '62%',
+        plugins: {
+          legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 11 } } },
+          tooltip: { callbacks: { label: (c2) => c2.label + ': ' + c2.raw } },
+        },
+      },
+    });
+  } else if (tagCtx) {
+    tagCtx.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text-muted);font-size:12px">' +
+      escapeHtml(t('finops_savings_tag_unavailable')) + '</div>';
+  }
+
+  // 5) Category drill-down tables
+  const list = document.getElementById('savingsCategoryList');
+  if (!list) return;
+  list.innerHTML = cats.map(c => _categoryTable(c)).join('') ||
+    '<div style="text-align:center;padding:30px;color:var(--text-muted);font-size:13px">' +
+    escapeHtml(t('finops_savings_no_findings')) + '</div>';
+}
+
+function _coverageGauge(label, pct, sub) {
+  if (pct == null) {
+    return '<div class="metric-card" style="text-align:center;padding:14px">' +
+      '<div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">' +
+        escapeHtml(label) + '</div>' +
+      '<div style="font-size:20px;color:var(--text-muted);margin-top:8px">—</div>' +
+      '<div style="font-size:10px;color:var(--text-muted);margin-top:4px">' + escapeHtml(sub || '') + '</div>' +
+    '</div>';
+  }
+  const color = pct >= 80 ? '#16a34a' : pct >= 50 ? '#d97706' : '#dc2626';
+  const dash  = (pct / 100) * 226.19;
+  const bg    = getTheme && getTheme() === 'light' ? '#d0d9e8' : '#1e2f44';
+  return '<div class="metric-card" style="text-align:center;padding:10px">' +
+    '<div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">' +
+      escapeHtml(label) + '</div>' +
+    '<svg viewBox="0 0 100 100" width="100" height="100" style="display:block;margin:0 auto">' +
+      '<circle cx="50" cy="50" r="36" fill="none" stroke="' + bg + '" stroke-width="10"/>' +
+      '<circle cx="50" cy="50" r="36" fill="none" stroke="' + color + '" stroke-width="10"' +
+        ' stroke-dasharray="' + dash.toFixed(2) + ' 226.19" transform="rotate(-90 50 50)" stroke-linecap="round"/>' +
+      '<text x="50" y="50" text-anchor="middle" fill="' + color + '" font-size="16" font-weight="700" dy="0.35em">' + pct + '%</text>' +
+    '</svg>' +
+    (sub ? '<div style="font-size:10px;color:var(--text-muted);margin-top:6px">' + escapeHtml(sub) + '</div>' : '') +
+  '</div>';
+}
+
+function _categoryTable(c) {
+  if (!c.items || c.items.length === 0) return '';
+  const rows = c.items.slice(0, 25).map(it => {
+    const cost = it.monthly_cost ? '$' + it.monthly_cost.toFixed(2) : '—';
+    const extra = it.median_cpu != null ? `CPU ${it.median_cpu}%` :
+                  it.days_stopped != null ? `${it.days_stopped}d` :
+                  it.bytes_out_14d != null ? `${(it.bytes_out_14d/1e6).toFixed(1)}MB` :
+                  it.created_at ? it.created_at.slice(0, 10) : '';
+    return '<tr>' +
+      '<td style="font-family:monospace;font-size:11px">' + escapeHtml(it.resource_id || '') + '</td>' +
+      '<td style="font-size:11px">' + escapeHtml(it.region || '') + '</td>' +
+      '<td style="font-size:11px">' + escapeHtml(it.spec || it.name || '') + '</td>' +
+      '<td style="font-size:11px;color:var(--text-muted)">' + escapeHtml(extra) + '</td>' +
+      '<td style="font-size:11px;text-align:right;font-weight:600">' + cost + '</td>' +
+    '</tr>';
+  }).join('');
+  const more = c.items.length > 25
+    ? `<div style="font-size:11px;color:var(--text-muted);padding:6px 0">+${c.items.length - 25} more</div>`
+    : '';
+  return '<details id="savings-cat-' + c.key + '" class="table-card" style="margin-top:8px;padding:0">' +
+    '<summary style="cursor:pointer;padding:10px 14px;display:flex;justify-content:space-between;align-items:center">' +
+      '<span style="font-weight:600;font-size:13px">' + escapeHtml(_savingsLabel(c.label)) + '</span>' +
+      '<span style="font-size:12px;color:var(--text-muted)">' +
+        c.count + ' • $' + (c.monthly_cost || 0).toFixed(2) + '/mo' +
+      '</span>' +
+    '</summary>' +
+    '<div style="padding:0 14px 12px"><table class="data-table" style="width:100%;font-size:11px">' +
+      '<thead><tr>' +
+        '<th>Resource</th><th>Region</th><th>Spec</th><th></th><th style="text-align:right">$/mo</th>' +
+      '</tr></thead><tbody>' + rows + '</tbody></table>' + more + '</div>' +
+  '</details>';
+}
+
 document.addEventListener('themechange', () => {
   if (_detailData) {
     applyChartDefaults();
     renderServiceCharts(_detailData.costs || {});
     renderRegionChart(_detailData.regions || {});
+    renderSavingsOpportunities(_detailData.savings || {});
     loadCostReport();
   }
 });

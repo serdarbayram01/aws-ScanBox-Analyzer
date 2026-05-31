@@ -1,0 +1,452 @@
+/* ============================================================
+   Topology — Architecture View tab
+   Theme-aware via existing CSS variables (theme.css). The SVG itself
+   carries its own colors (palette is hardcoded in architecture_view.py
+   to match drawio mxgraph.aws4) so the inline preview looks identical
+   to what diagrams.net renders for the .drawio export.
+   ============================================================ */
+
+/* ── Tab bar ─────────────────────────────────────────────── */
+.topo-tabbar {
+  display: inline-flex;
+  gap: 4px;
+  margin-top: 12px;
+  padding: 4px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.topo-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 14px;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition);
+}
+.topo-tab:hover { color: var(--text-primary); background: var(--bg-card-hover); }
+.topo-tab.is-active {
+  background: var(--accent);
+  color: #1a1306;
+}
+[data-theme="light"] .topo-tab.is-active { color: #fff; }
+.topo-tab svg { flex-shrink: 0; }
+
+/* ── Architecture toolbar (VPC selector + export buttons) ── */
+.arch-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 14px 16px;
+}
+.arch-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-card-hover);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  padding: 7px 12px;
+  font-size: 12.5px;
+  font-weight: 500;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: border-color var(--transition), background var(--transition), color var(--transition);
+}
+.arch-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.arch-btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #1a1306;
+}
+.arch-btn-primary:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+  color: #1a1306;
+}
+[data-theme="light"] .arch-btn-primary { color: #fff; }
+[data-theme="light"] .arch-btn-primary:hover { color: #fff; }
+.arch-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.arch-btn svg { flex-shrink: 0; }
+
+/* ── Color legend strip ──────────────────────────────────── */
+.arch-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  padding: 0 16px 14px;
+  font-size: 11.5px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  letter-spacing: 0.02em;
+}
+.arch-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-secondary);
+}
+.arch-legend-swatch {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  border: 2px solid currentColor;
+  background: transparent;
+}
+.arch-legend-region  { color: #00A4A6; }
+.arch-legend-vpc     { color: #248814; }
+.arch-legend-az      { color: #147EBA; }
+.arch-legend-az .arch-legend-swatch { border-style: dashed; }
+.arch-legend-public  { color: #7AA116; }
+.arch-legend-public .arch-legend-swatch { background: rgba(122,161,22,0.18); }
+.arch-legend-private { color: #147EBA; }
+.arch-legend-private .arch-legend-swatch { background: rgba(20,126,186,0.18); }
+
+/* ── SVG container ───────────────────────────────────────── */
+.arch-svg-card {
+  margin-top: 4px;
+  padding: 14px;
+  position: relative;
+  /* Fixed height so the diagram area always fits within one viewport;
+     pan/zoom inside this box rather than growing the page. */
+  height: min(78vh, 880px);
+  min-height: 480px;
+  overflow: hidden;
+}
+.arch-svg-card:fullscreen {
+  height: 100vh;
+  width: 100vw;
+  background: var(--bg-base);
+  padding: 8px;
+  border-radius: 0;
+}
+
+.arch-svg-status {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  font-size: 13.5px;
+  pointer-events: none;
+  z-index: 1;
+}
+.arch-svg-card.is-empty .arch-svg-status { display: flex; }
+.arch-svg-card:not(.is-empty) .arch-svg-status { display: none; }
+
+/* Pan/zoom stage: clips the SVG and lets it slide via translate/scale. */
+.arch-svg-stage {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  cursor: grab;
+  background:
+    radial-gradient(ellipse 800px 600px at 80% -10%, rgba(255,153,0,0.04), transparent 60%),
+    radial-gradient(ellipse 800px 600px at -10% 110%, rgba(77,166,255,0.05), transparent 60%);
+  border-radius: var(--radius-sm);
+}
+.arch-svg-stage.is-panning { cursor: grabbing; }
+
+#archSvgContainer {
+  position: absolute;
+  top: 0; left: 0;
+  transform-origin: 0 0;
+  will-change: transform;
+  /* JS sets transform: translate(...) scale(...). */
+}
+#archSvgContainer svg {
+  display: block;
+  filter: drop-shadow(0 4px 18px rgba(0, 0, 0, 0.25));
+  border-radius: var(--radius-sm);
+  /* Prevent UA-default inline-image fitting from squashing it. */
+  max-width: none;
+  height: auto;
+}
+[data-theme="light"] #archSvgContainer svg {
+  filter: drop-shadow(0 4px 18px rgba(0, 0, 0, 0.10));
+}
+
+/* ── Floating zoom / pan control panel ─────────────────── */
+.arch-map-controls {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 6px 6px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  user-select: none;
+}
+.arch-map-btn {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 0;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: var(--radius-xs);
+  transition: background var(--transition), color var(--transition);
+}
+.arch-map-btn:hover {
+  background: var(--bg-card-hover);
+  color: var(--accent);
+}
+.arch-zoom-slider-wrap {
+  height: 110px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.arch-zoom-slider {
+  -webkit-appearance: slider-vertical;
+  appearance: slider-vertical;
+  writing-mode: bt-lr;     /* Firefox vertical orientation */
+  width: 8px;
+  height: 100px;
+  background: transparent;
+  cursor: pointer;
+}
+.arch-zoom-slider::-webkit-slider-runnable-track {
+  width: 4px;
+  background: var(--border-light);
+  border-radius: 2px;
+}
+.arch-zoom-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--bg-card);
+  cursor: pointer;
+  margin-left: -5px;
+}
+.arch-zoom-slider::-moz-range-track {
+  width: 4px;
+  background: var(--border-light);
+  border-radius: 2px;
+}
+.arch-zoom-slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--bg-card);
+  cursor: pointer;
+}
+.arch-zoom-readout {
+  font-size: 10.5px;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
+  margin-top: 2px;
+}
+
+/* ── Loading + error states ──────────────────────────────── */
+.arch-svg-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  color: var(--text-muted);
+  font-size: 13px;
+  gap: 10px;
+}
+.arch-svg-loading::before {
+  content: "";
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  animation: archSpin 0.8s linear infinite;
+}
+@keyframes archSpin { to { transform: rotate(360deg); } }
+.arch-svg-error {
+  padding: 28px 20px;
+  text-align: center;
+  color: var(--red);
+  font-size: 13px;
+}
+
+/* ── Inventory table ─────────────────────────────────────── */
+.arch-inventory {
+  margin-top: 4px;
+  padding: 14px 16px;
+}
+.arch-inventory-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+  cursor: pointer;
+  user-select: none;
+}
+.arch-inventory-head:hover .arch-inv-chevron { color: var(--accent); }
+
+/* Accordion: closed by default — body hidden + chevron points right.
+   The `.is-open` class is toggled by JS on click. */
+.arch-inv-chevron {
+  color: var(--text-muted);
+  transition: transform 0.2s, color 0.15s;
+  transform: rotate(-90deg);
+  flex-shrink: 0;
+}
+.arch-inventory.is-open .arch-inv-chevron { transform: rotate(0deg); }
+.arch-inventory:not(.is-open) .arch-inventory-body { display: none; }
+.arch-inventory:not(.is-open) .arch-inventory-head { margin-bottom: 0; }
+.arch-inventory-head strong {
+  color: var(--text-primary);
+  font-size: 13.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.arch-inventory-meta {
+  margin-left: 8px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-family: var(--font-mono);
+}
+.arch-inventory-toolbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.arch-inventory-toolbar .topo-search-input {
+  min-width: 220px;
+}
+.arch-inventory-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.arch-inv-group {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card-hover);
+  overflow: hidden;
+  transition: border-color var(--transition);
+}
+.arch-inv-group:hover { border-color: var(--accent); }
+.arch-inv-group-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 14px;
+  cursor: pointer;
+  user-select: none;
+}
+.arch-inv-group-head svg {
+  flex-shrink: 0;
+  transition: transform 0.18s ease;
+  color: var(--text-muted);
+}
+.arch-inv-group.is-open .arch-inv-group-head svg.chev {
+  transform: rotate(90deg);
+}
+.arch-inv-group-icon {
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.arch-inv-group-icon img {
+  max-width: 100%;
+  max-height: 100%;
+}
+.arch-inv-type {
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 11.5px;
+  color: var(--text-primary);
+}
+.arch-inv-count {
+  margin-left: auto;
+  background: var(--accent-dim);
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 11px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-family: var(--font-mono);
+}
+.arch-inv-group-body {
+  display: none;
+  background: var(--bg-card);
+  border-top: 1px solid var(--border);
+}
+.arch-inv-group.is-open .arch-inv-group-body { display: block; }
+.arch-inv-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  font-family: var(--font-mono);
+}
+.arch-inv-table th, .arch-inv-table td {
+  padding: 7px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 280px;
+}
+.arch-inv-table th {
+  background: var(--bg-card-hover);
+  color: var(--text-secondary);
+  font-weight: 600;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-family: var(--font-sans);
+}
+.arch-inv-table tbody tr:hover { background: var(--bg-card-hover); }
+.arch-inv-state-running, .arch-inv-state-available, .arch-inv-state-active,
+.arch-inv-state-in-use { color: var(--green); font-weight: 600; }
+.arch-inv-state-stopped, .arch-inv-state-pending { color: var(--yellow); font-weight: 600; }
+.arch-inv-state-terminated, .arch-inv-state-failed,
+.arch-inv-state-detached { color: var(--red); font-weight: 600; }
+.arch-inv-empty {
+  padding: 24px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+/* ── Mobile tweaks ───────────────────────────────────────── */
+@media (max-width: 720px) {
+  .arch-toolbar { gap: 6px; padding: 10px; }
+  .arch-btn span { display: none; } /* icons-only on small screens */
+  .arch-legend { padding: 0 10px 10px; gap: 8px; font-size: 11px; }
+}

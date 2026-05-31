@@ -52,6 +52,7 @@ def run_checks(session, exclude_defaults=False, regions=None):
                         service=SERVICE, resource_id=lg.get('arn', name),
                         resource_type='AWS::Logs::LogGroup', region=region,
                         frameworks={
+                                    'SOC2': ['CC6.7', 'C1.2'],
                             'HIPAA': ['164.312(a)(2)(iv)'],
                             'ISO27001': ['A.10.1.1'],
                             'WAFR': {'pillar': 'Security', 'controls': ['SEC08']},
@@ -70,7 +71,8 @@ def run_checks(session, exclude_defaults=False, regions=None):
                             severity='LOW', status='FAIL',
                             service=SERVICE, resource_id=lg.get('arn', name),
                             resource_type='AWS::Logs::LogGroup', region=region,
-                            frameworks={'WAFR': {'pillar': 'Operational Excellence', 'controls': ['OPS06']}},
+                            frameworks={
+                                        'SOC2': ['CC7.2', 'CC2.1'],'WAFR': {'pillar': 'Operational Excellence', 'controls': ['OPS06']}},
                             remediation=f'CloudWatch Console → Log groups → {name} → Edit retention setting (90–365 days recommended).',
                             remediation_tr=f'CloudWatch Konsol → Günlük grupları → {name} → Saklama ayarını düzenle (90–365 gün önerilir).',
                         ))
@@ -104,6 +106,7 @@ def run_checks(session, exclude_defaults=False, regions=None):
                     resource_type='AWS::CloudWatch::Alarm', region='us-east-1',
                     frameworks={
                         'CIS': ['3.1–3.14'],
+                        'SOC2': ['CC7.2', 'CC4.1'],
                         'WAFR': {'pillar': 'Security', 'controls': ['SEC04']},
                     },
                     remediation=f'Create a CloudWatch metric filter + alarm for: {alarm_desc}. See CIS AWS Foundations Benchmark section 3.',

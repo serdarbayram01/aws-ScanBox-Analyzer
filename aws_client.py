@@ -11,7 +11,7 @@ import os
 import calendar
 import time
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import re
@@ -975,3 +975,632 @@ def fetch_ec2_inventory(profile_name):
 
     except Exception as exc:
         return {'status': 'error', 'error': _friendly_error(str(exc))}
+
+
+# ---------------------------------------------------------------------------
+# Savings Opportunities — idle/underutilized resource detection
+# All approximations use AWS US-East-1 list prices (sufficient for relative
+# ranking; per-region pricing API would add many calls for marginal accuracy).
+# ---------------------------------------------------------------------------
+
+# EBS price per GB-month (USD, us-east-1, 2026)
+EBS_PRICE_PER_GB = {'gp3': 0.08, 'gp2': 0.10, 'io1': 0.125, 'io2': 0.125,
+                    'st1': 0.045, 'sc1': 0.015, 'standard': 0.05}
+EIP_MONTHLY_COST = 3.65        # 730h × $0.005
+NAT_GW_HOURLY    = 0.0445      # us-east-1; ~$32.40/mo
+ALB_HOURLY       = 0.0225      # ~$16.20/mo (excluding LCU)
+NLB_HOURLY       = 0.0225      # similar
+HOURS_PER_MONTH  = 730
+RDS_SNAPSHOT_PER_GB = 0.095
+
+
+def _enabled_regions(session):
+    """Return list of opted-in EC2 regions for this account."""
+    try:
+        ec2 = session.client('ec2', region_name='us-east-1')
+        return [r['RegionName'] for r in ec2.describe_regions(AllRegions=False)['Regions']]
+    except Exception:
+        return ['us-east-1']  # safe fallback
+
+
+def _ebs_cost(size_gb, vol_type):
+    return round(size_gb * EBS_PRICE_PER_GB.get(vol_type, 0.08), 2)
+
+
+def fetch_unattached_ebs(profile_name):
+    """Find EBS volumes in 'available' state across all regions."""
+    _audit_logger.info(f'SAVINGS_UNATTACHED_EBS profile={profile_name}')
+    try:
+        session = boto3.Session(profile_name=profile_name)
+        regions = _enabled_regions(session)
+
+        def _per_region(region):
+            try:
+                ec2 = session.client('ec2', region_name=region)
+                resp = ec2.describe_volumes(Filters=[{'Name': 'status', 'Values': ['available']}])
+                vols = []
+                for v in resp.get('Volumes', []):
+                    size = v.get('Size', 0)
+                    vt   = v.get('VolumeType', 'gp2')
+                    vols.append({
+                        'resource_id':  v['VolumeId'],
+                        'region':       region,
+                        'spec':         f"{vt} {size}GB",
+                        'size_gb':      size,
+                        'volume_type':  vt,
+                        'monthly_cost': _ebs_cost(size, vt),
+                        'created_at':   v.get('CreateTime').isoformat() if v.get('CreateTime') else '',
+                    })
+                return vols
+            except Exception:
+                return []
+
+        items = []
+        with ThreadPoolExecutor(max_workers=min(len(regions), MAX_THREAD_WORKERS)) as ex:
+            for fut in as_completed([ex.submit(_per_region, r) for r in regions]):
+                items.extend(fut.result())
+
+        items.sort(key=lambda x: x['monthly_cost'], reverse=True)
+        total = round(sum(i['monthly_cost'] for i in items), 2)
+        return {'status': 'success', 'items': items, 'count': len(items),
+                'monthly_cost': total}
+    except Exception as exc:
+        return {'status': 'unavailable', 'reason': _friendly_error(str(exc))}
+
+
+def fetch_unassociated_eips(profile_name):
+    """Find Elastic IPs not associated with any instance."""
+    _audit_logger.info(f'SAVINGS_UNASSOC_EIPS profile={profile_name}')
+    try:
+        session = boto3.Session(profile_name=profile_name)
+        regions = _enabled_regions(session)
+
+        def _per_region(region):
+            try:
+                ec2 = session.client('ec2', region_name=region)
+                resp = ec2.describe_addresses()
+                eips = []
+                for a in resp.get('Addresses', []):
+                    if a.get('AssociationId'):
+                        continue
+                    eips.append({
+                        'resource_id':  a.get('AllocationId') or a.get('PublicIp', '?'),
+                        'region':       region,
+                        'spec':         a.get('PublicIp', ''),
+                        'monthly_cost': EIP_MONTHLY_COST,
+                    })
+                return eips
+            except Exception:
+                return []
+
+        items = []
+        with ThreadPoolExecutor(max_workers=min(len(regions), MAX_THREAD_WORKERS)) as ex:
+            for fut in as_completed([ex.submit(_per_region, r) for r in regions]):
+                items.extend(fut.result())
+
+        return {'status': 'success', 'items': items, 'count': len(items),
+                'monthly_cost': round(len(items) * EIP_MONTHLY_COST, 2)}
+    except Exception as exc:
+        return {'status': 'unavailable', 'reason': _friendly_error(str(exc))}
+
+
+def fetch_stopped_ec2(profile_name, days=30):
+    """Long-stopped EC2 instances. EBS volumes still bill while stopped."""
+    _audit_logger.info(f'SAVINGS_STOPPED_EC2 profile={profile_name} days={days}')
+    try:
+        session = boto3.Session(profile_name=profile_name)
+        regions = _enabled_regions(session)
+        cutoff_dt = datetime.now(timezone.utc) - timedelta(days=days)
+
+        def _per_region(region):
+            try:
+                ec2 = session.client('ec2', region_name=region)
+                resp = ec2.describe_instances(
+                    Filters=[{'Name': 'instance-state-name', 'Values': ['stopped']}])
+                results = []
+                # Build EBS price map (best-effort)
+                vol_ids = []
+                for r in resp.get('Reservations', []):
+                    for inst in r.get('Instances', []):
+                        for bdm in inst.get('BlockDeviceMappings', []):
+                            v = bdm.get('Ebs', {}).get('VolumeId')
+                            if v: vol_ids.append(v)
+                vol_map = {}
+                if vol_ids:
+                    try:
+                        for i in range(0, len(vol_ids), 200):
+                            vresp = ec2.describe_volumes(VolumeIds=vol_ids[i:i+200])
+                            for v in vresp.get('Volumes', []):
+                                vol_map[v['VolumeId']] = (v.get('Size', 0), v.get('VolumeType', 'gp2'))
+                    except Exception:
+                        pass
+
+                for r in resp.get('Reservations', []):
+                    for inst in r.get('Instances', []):
+                        # AWS doesn't expose "stopped since" directly;
+                        # use most recent state transition reason timestamp
+                        # (StateTransitionReason includes the timestamp in
+                        # parentheses for stopped instances, e.g.
+                        # "User initiated (2025-12-01 10:00:00 GMT)").
+                        stopped_since = None
+                        reason = inst.get('StateTransitionReason', '')
+                        m = re.search(r'\((\d{4}-\d{2}-\d{2}[^)]+)\)', reason)
+                        if m:
+                            try:
+                                stopped_since = datetime.strptime(
+                                    m.group(1).split(' GMT')[0],
+                                    '%Y-%m-%d %H:%M:%S').replace(tzinfo=timezone.utc)
+                            except Exception:
+                                pass
+                        if stopped_since is None:
+                            # fall back to launch time (conservative)
+                            lt = inst.get('LaunchTime')
+                            if lt:
+                                stopped_since = lt if lt.tzinfo else lt.replace(tzinfo=timezone.utc)
+                        if stopped_since is None or stopped_since > cutoff_dt:
+                            continue
+
+                        # Compute attached EBS cost (still billed while stopped)
+                        ebs_cost = 0.0
+                        ebs_total_gb = 0
+                        for bdm in inst.get('BlockDeviceMappings', []):
+                            v = bdm.get('Ebs', {}).get('VolumeId')
+                            if v and v in vol_map:
+                                size, vt = vol_map[v]
+                                ebs_total_gb += size
+                                ebs_cost += _ebs_cost(size, vt)
+
+                        days_stopped = (datetime.now(timezone.utc) - stopped_since).days
+                        tags = {t['Key']: t['Value'] for t in inst.get('Tags', [])}
+                        results.append({
+                            'resource_id':  inst['InstanceId'],
+                            'region':       region,
+                            'spec':         f"{inst['InstanceType']} ({ebs_total_gb}GB EBS)",
+                            'monthly_cost': round(ebs_cost, 2),
+                            'days_stopped': days_stopped,
+                            'name':         tags.get('Name', '-'),
+                        })
+                return results
+            except Exception:
+                return []
+
+        items = []
+        with ThreadPoolExecutor(max_workers=min(len(regions), MAX_THREAD_WORKERS)) as ex:
+            for fut in as_completed([ex.submit(_per_region, r) for r in regions]):
+                items.extend(fut.result())
+
+        items.sort(key=lambda x: x['monthly_cost'], reverse=True)
+        return {'status': 'success', 'items': items, 'count': len(items),
+                'monthly_cost': round(sum(i['monthly_cost'] for i in items), 2),
+                'threshold_days': days}
+    except Exception as exc:
+        return {'status': 'unavailable', 'reason': _friendly_error(str(exc))}
+
+
+def _cw_metric_sum(session, region, namespace, metric, dims, days=14):
+    """Sum a CloudWatch metric over the last N days. Returns 0 on error."""
+    try:
+        cw = session.client('cloudwatch', region_name=region)
+        resp = cw.get_metric_statistics(
+            Namespace=namespace, MetricName=metric, Dimensions=dims,
+            StartTime=datetime.now(timezone.utc) - timedelta(days=days),
+            EndTime=datetime.now(timezone.utc),
+            Period=86400, Statistics=['Sum'])
+        return sum(p.get('Sum', 0) for p in resp.get('Datapoints', []))
+    except Exception:
+        return 0
+
+
+def fetch_idle_nat_gateways(profile_name):
+    """NAT Gateways with <1GB outbound traffic in last 14 days."""
+    _audit_logger.info(f'SAVINGS_IDLE_NAT profile={profile_name}')
+    try:
+        session = boto3.Session(profile_name=profile_name)
+        regions = _enabled_regions(session)
+
+        def _per_region(region):
+            try:
+                ec2 = session.client('ec2', region_name=region)
+                resp = ec2.describe_nat_gateways(
+                    Filter=[{'Name': 'state', 'Values': ['available']}])
+                results = []
+                for ng in resp.get('NatGateways', []):
+                    ng_id = ng['NatGatewayId']
+                    bytes_out = _cw_metric_sum(
+                        session, region, 'AWS/NATGateway', 'BytesOutToDestination',
+                        [{'Name': 'NatGatewayId', 'Value': ng_id}], days=14)
+                    if bytes_out < 1_073_741_824:  # < 1 GB → idle
+                        results.append({
+                            'resource_id':  ng_id,
+                            'region':       region,
+                            'spec':         f"{ng.get('ConnectivityType','public')} NAT",
+                            'monthly_cost': round(NAT_GW_HOURLY * HOURS_PER_MONTH, 2),
+                            'bytes_out_14d': int(bytes_out),
+                        })
+                return results
+            except Exception:
+                return []
+
+        items = []
+        with ThreadPoolExecutor(max_workers=min(len(regions), MAX_THREAD_WORKERS)) as ex:
+            for fut in as_completed([ex.submit(_per_region, r) for r in regions]):
+                items.extend(fut.result())
+
+        return {'status': 'success', 'items': items, 'count': len(items),
+                'monthly_cost': round(sum(i['monthly_cost'] for i in items), 2)}
+    except Exception as exc:
+        return {'status': 'unavailable', 'reason': _friendly_error(str(exc))}
+
+
+def fetch_empty_load_balancers(profile_name):
+    """ALB/NLB with zero healthy targets across all target groups."""
+    _audit_logger.info(f'SAVINGS_EMPTY_ELB profile={profile_name}')
+    try:
+        session = boto3.Session(profile_name=profile_name)
+        regions = _enabled_regions(session)
+
+        def _per_region(region):
+            try:
+                elb = session.client('elbv2', region_name=region)
+                lbs = elb.describe_load_balancers().get('LoadBalancers', [])
+                if not lbs:
+                    return []
+                tgs = elb.describe_target_groups().get('TargetGroups', [])
+                tg_by_lb = {}
+                for tg in tgs:
+                    for arn in tg.get('LoadBalancerArns', []):
+                        tg_by_lb.setdefault(arn, []).append(tg['TargetGroupArn'])
+
+                results = []
+                for lb in lbs:
+                    lb_arn = lb['LoadBalancerArn']
+                    healthy = 0
+                    for tg_arn in tg_by_lb.get(lb_arn, []):
+                        try:
+                            health = elb.describe_target_health(TargetGroupArn=tg_arn)
+                            for h in health.get('TargetHealthDescriptions', []):
+                                if h.get('TargetHealth', {}).get('State') == 'healthy':
+                                    healthy += 1
+                        except Exception:
+                            pass
+                    if healthy > 0:
+                        continue
+                    lb_type = lb.get('Type', 'application')
+                    rate = ALB_HOURLY if lb_type == 'application' else NLB_HOURLY
+                    results.append({
+                        'resource_id':  lb['LoadBalancerName'],
+                        'region':       region,
+                        'spec':         f"{lb_type} ({lb.get('Scheme','internet-facing')})",
+                        'monthly_cost': round(rate * HOURS_PER_MONTH, 2),
+                        'arn':          lb_arn,
+                    })
+                return results
+            except Exception:
+                return []
+
+        items = []
+        with ThreadPoolExecutor(max_workers=min(len(regions), MAX_THREAD_WORKERS)) as ex:
+            for fut in as_completed([ex.submit(_per_region, r) for r in regions]):
+                items.extend(fut.result())
+
+        return {'status': 'success', 'items': items, 'count': len(items),
+                'monthly_cost': round(sum(i['monthly_cost'] for i in items), 2)}
+    except Exception as exc:
+        return {'status': 'unavailable', 'reason': _friendly_error(str(exc))}
+
+
+def fetch_orphan_rds_snapshots(profile_name):
+    """Manual RDS snapshots whose source DB no longer exists."""
+    _audit_logger.info(f'SAVINGS_ORPHAN_SNAPSHOTS profile={profile_name}')
+    try:
+        session = boto3.Session(profile_name=profile_name)
+        regions = _enabled_regions(session)
+
+        def _per_region(region):
+            try:
+                rds = session.client('rds', region_name=region)
+                live = {db['DBInstanceIdentifier']
+                        for db in rds.describe_db_instances().get('DBInstances', [])}
+                snaps = rds.describe_db_snapshots(SnapshotType='manual').get('DBSnapshots', [])
+                results = []
+                for s in snaps:
+                    if s.get('DBInstanceIdentifier') in live:
+                        continue
+                    size = s.get('AllocatedStorage', 0)
+                    results.append({
+                        'resource_id':  s['DBSnapshotIdentifier'],
+                        'region':       region,
+                        'spec':         f"{size}GB ({s.get('Engine','?')})",
+                        'monthly_cost': round(size * RDS_SNAPSHOT_PER_GB, 2),
+                        'source_db':    s.get('DBInstanceIdentifier', '?'),
+                        'created_at':   s.get('SnapshotCreateTime').isoformat() if s.get('SnapshotCreateTime') else '',
+                    })
+                return results
+            except Exception:
+                return []
+
+        items = []
+        with ThreadPoolExecutor(max_workers=min(len(regions), MAX_THREAD_WORKERS)) as ex:
+            for fut in as_completed([ex.submit(_per_region, r) for r in regions]):
+                items.extend(fut.result())
+
+        items.sort(key=lambda x: x['monthly_cost'], reverse=True)
+        return {'status': 'success', 'items': items, 'count': len(items),
+                'monthly_cost': round(sum(i['monthly_cost'] for i in items), 2)}
+    except Exception as exc:
+        return {'status': 'unavailable', 'reason': _friendly_error(str(exc))}
+
+
+def fetch_low_cpu_ec2(profile_name, days=14, threshold=5.0):
+    """Running EC2 instances with median CPU < threshold% over N days.
+    Returned cost is on-demand hint (rough — actual saving depends on rightsize)."""
+    _audit_logger.info(f'SAVINGS_LOW_CPU profile={profile_name} days={days}')
+    try:
+        session = boto3.Session(profile_name=profile_name)
+        regions = _enabled_regions(session)
+
+        def _per_region(region):
+            try:
+                ec2 = session.client('ec2', region_name=region)
+                resp = ec2.describe_instances(
+                    Filters=[{'Name': 'instance-state-name', 'Values': ['running']}])
+                cw = session.client('cloudwatch', region_name=region)
+                results = []
+                for r in resp.get('Reservations', []):
+                    for inst in r.get('Instances', []):
+                        try:
+                            iid = inst['InstanceId']
+                            stat = cw.get_metric_statistics(
+                                Namespace='AWS/EC2', MetricName='CPUUtilization',
+                                Dimensions=[{'Name':'InstanceId','Value':iid}],
+                                StartTime=datetime.now(timezone.utc) - timedelta(days=days),
+                                EndTime=datetime.now(timezone.utc),
+                                Period=86400, Statistics=['Average'])
+                            datapoints = [p['Average'] for p in stat.get('Datapoints', [])]
+                            if not datapoints:
+                                continue
+                            datapoints.sort()
+                            median = datapoints[len(datapoints)//2]
+                            if median >= threshold:
+                                continue
+                            tags = {t['Key']: t['Value'] for t in inst.get('Tags', [])}
+                            results.append({
+                                'resource_id':  iid,
+                                'region':       region,
+                                'spec':         inst['InstanceType'],
+                                'name':         tags.get('Name', '-'),
+                                'median_cpu':   round(median, 1),
+                                'days':         days,
+                                # Conservative right-sizing hint: ~50% of on-demand
+                                # is recoverable by halving the instance size.
+                                'monthly_cost': 0.0,  # estimated separately
+                            })
+                        except Exception:
+                            continue
+                return results
+            except Exception:
+                return []
+
+        items = []
+        with ThreadPoolExecutor(max_workers=min(len(regions), MAX_THREAD_WORKERS)) as ex:
+            for fut in as_completed([ex.submit(_per_region, r) for r in regions]):
+                items.extend(fut.result())
+
+        items.sort(key=lambda x: x['median_cpu'])
+        return {'status': 'success', 'items': items, 'count': len(items),
+                'monthly_cost': 0.0,  # right-sizing benefit is qualitative here
+                'threshold_pct': threshold, 'window_days': days}
+    except Exception as exc:
+        return {'status': 'unavailable', 'reason': _friendly_error(str(exc))}
+
+
+def fetch_savings_plan_coverage(profile_name):
+    """SP coverage % over last 30 days. Single Cost Explorer call."""
+    _audit_logger.info(f'SAVINGS_SP_COVERAGE profile={profile_name}')
+    cache_k = _cache_key('fetch_savings_plan_coverage', profile_name)
+    cached = _cache_get(cache_k)
+    if cached: return cached
+    try:
+        session = boto3.Session(profile_name=profile_name)
+        ce = _ce_client(session)
+        end = datetime.now().date().replace(day=1)
+        start = (end - timedelta(days=1)).replace(day=1)
+        resp = ce.get_savings_plans_coverage(
+            TimePeriod={'Start': str(start), 'End': str(end)},
+            Granularity='MONTHLY')
+        total_pct = 0.0
+        n = 0
+        on_demand_eligible = 0.0
+        for r in resp.get('SavingsPlansCoverages', []):
+            cov = r.get('Coverage', {})
+            pct = float(cov.get('CoveragePercentage', 0))
+            total_pct += pct; n += 1
+            on_demand_eligible += float(cov.get('OnDemandCost', 0))
+        coverage = round(total_pct / n, 1) if n else 0.0
+        result = {'status': 'success', 'coverage_pct': coverage,
+                  'on_demand_eligible': round(on_demand_eligible, 2),
+                  'period': f'{start} → {end}'}
+        _cache_set(cache_k, result)
+        return result
+    except Exception as exc:
+        return {'status': 'unavailable', 'reason': _friendly_error(str(exc))}
+
+
+def fetch_ri_coverage(profile_name):
+    """Reserved Instance coverage % over last 30 days."""
+    _audit_logger.info(f'SAVINGS_RI_COVERAGE profile={profile_name}')
+    cache_k = _cache_key('fetch_ri_coverage', profile_name)
+    cached = _cache_get(cache_k)
+    if cached: return cached
+    try:
+        session = boto3.Session(profile_name=profile_name)
+        ce = _ce_client(session)
+        end = datetime.now().date().replace(day=1)
+        start = (end - timedelta(days=1)).replace(day=1)
+        resp = ce.get_reservation_coverage(
+            TimePeriod={'Start': str(start), 'End': str(end)},
+            Granularity='MONTHLY')
+        total_pct = 0.0
+        n = 0
+        for r in resp.get('CoveragesByTime', []):
+            cov = r.get('Total', {}).get('CoverageHoursPercentage') \
+                or r.get('Total', {}).get('CoverageHours', {}).get('CoverageHoursPercentage')
+            if cov is None:
+                continue
+            total_pct += float(cov); n += 1
+        coverage = round(total_pct / n, 1) if n else 0.0
+        result = {'status': 'success', 'coverage_pct': coverage,
+                  'period': f'{start} → {end}'}
+        _cache_set(cache_k, result)
+        return result
+    except Exception as exc:
+        return {'status': 'unavailable', 'reason': _friendly_error(str(exc))}
+
+
+def fetch_cost_forecast(profile_name, days=30):
+    """30-day cost forecast (mean + low/high band)."""
+    _audit_logger.info(f'SAVINGS_FORECAST profile={profile_name} days={days}')
+    cache_k = _cache_key('fetch_cost_forecast', profile_name, days)
+    cached = _cache_get(cache_k)
+    if cached: return cached
+    try:
+        session = boto3.Session(profile_name=profile_name)
+        ce = _ce_client(session)
+        start = datetime.now().date()
+        end = start + timedelta(days=days)
+        resp = ce.get_cost_forecast(
+            TimePeriod={'Start': str(start), 'End': str(end)},
+            Metric='UNBLENDED_COST', Granularity='MONTHLY',
+            PredictionIntervalLevel=80)
+        mean = float(resp.get('Total', {}).get('Amount', 0))
+        low = high = mean
+        for f in resp.get('ForecastResultsByTime', []) or []:
+            low  = float(f.get('PredictionIntervalLowerBound',  low))
+            high = float(f.get('PredictionIntervalUpperBound', high))
+        result = {'status': 'success', 'mean': round(mean, 2),
+                  'low': round(low, 2), 'high': round(high, 2),
+                  'period_days': days}
+        _cache_set(cache_k, result)
+        return result
+    except Exception as exc:
+        return {'status': 'unavailable', 'reason': _friendly_error(str(exc))}
+
+
+def fetch_tag_coverage(profile_name, required_tags=None):
+    """% of resources carrying all required tags. Default: Owner/Environment/CostCenter."""
+    if required_tags is None:
+        required_tags = ['Owner', 'Environment', 'CostCenter']
+    _audit_logger.info(f'SAVINGS_TAG_COVERAGE profile={profile_name}')
+    try:
+        session = boto3.Session(profile_name=profile_name)
+        regions = _enabled_regions(session)
+
+        def _per_region(region):
+            try:
+                tag = session.client('resourcegroupstaggingapi', region_name=region)
+                paginator = tag.get_paginator('get_resources')
+                total = 0
+                fully_tagged = 0
+                missing_top = {}  # resource_arn → list of missing tags
+                for page in paginator.paginate(ResourcesPerPage=100):
+                    for r in page.get('ResourceTagMappingList', []):
+                        total += 1
+                        present = {t['Key'] for t in r.get('Tags', [])}
+                        missing = [t for t in required_tags if t not in present]
+                        if not missing:
+                            fully_tagged += 1
+                        elif len(missing_top) < 25:
+                            missing_top[r['ResourceARN']] = missing
+                return total, fully_tagged, missing_top
+            except Exception:
+                return 0, 0, {}
+
+        total = 0; tagged = 0; missing_top = {}
+        with ThreadPoolExecutor(max_workers=min(len(regions), MAX_THREAD_WORKERS)) as ex:
+            for fut in as_completed([ex.submit(_per_region, r) for r in regions]):
+                t, ft, m = fut.result()
+                total += t; tagged += ft
+                missing_top.update(m)
+
+        pct = round(tagged / total * 100, 1) if total else 0
+        return {'status': 'success', 'total_resources': total, 'fully_tagged': tagged,
+                'tagged_pct': pct, 'required_tags': required_tags,
+                'sample_missing': [{'arn': k, 'missing': v}
+                                   for k, v in list(missing_top.items())[:25]]}
+    except Exception as exc:
+        return {'status': 'unavailable', 'reason': _friendly_error(str(exc))}
+
+
+# ---------------------------------------------------------------------------
+# Combined wrapper — runs all 11 collectors in parallel
+# ---------------------------------------------------------------------------
+
+def fetch_savings_summary(profile_name):
+    """Run every savings collector in parallel; return ranked categories + totals.
+
+    Each category in `categories` has shape::
+        {key, label, count, monthly_cost, status, items: [...]}
+    Categories are sorted by monthly_cost descending so the UI naturally
+    surfaces highest-impact wins first.
+    """
+    _audit_logger.info(f'SAVINGS_SUMMARY profile={profile_name}')
+    cache_k = _cache_key('fetch_savings_summary', profile_name)
+    cached = _cache_get(cache_k)
+    if cached: return cached
+
+    collectors = [
+        ('unattached_ebs',       'Unattached EBS Volumes',     fetch_unattached_ebs),
+        ('unassociated_eips',    'Unassociated Elastic IPs',   fetch_unassociated_eips),
+        ('stopped_ec2',          'Long-Stopped EC2 Instances', fetch_stopped_ec2),
+        ('idle_nat',             'Idle NAT Gateways',          fetch_idle_nat_gateways),
+        ('empty_load_balancers', 'Empty Load Balancers',       fetch_empty_load_balancers),
+        ('orphan_rds_snaps',     'Orphan RDS Snapshots',       fetch_orphan_rds_snapshots),
+        ('low_cpu_ec2',          'Underutilized EC2 (CPU<5%)', fetch_low_cpu_ec2),
+    ]
+
+    results = {}
+    with ThreadPoolExecutor(max_workers=MAX_THREAD_WORKERS) as ex:
+        future_map = {ex.submit(fn, profile_name): key for key, _, fn in collectors}
+        # Coverage / forecast / tag don't fit the same shape — fan them out too
+        future_map[ex.submit(fetch_savings_plan_coverage, profile_name)] = '_sp'
+        future_map[ex.submit(fetch_ri_coverage, profile_name)]           = '_ri'
+        future_map[ex.submit(fetch_cost_forecast, profile_name)]         = '_forecast'
+        future_map[ex.submit(fetch_tag_coverage, profile_name)]          = '_tags'
+        for fut in as_completed(future_map):
+            results[future_map[fut]] = fut.result()
+
+    label_for = {k: lbl for k, lbl, _ in collectors}
+    categories = []
+    for key, _, _ in collectors:
+        r = results.get(key, {})
+        if r.get('status') != 'success':
+            categories.append({'key': key, 'label': label_for[key],
+                               'status': 'unavailable',
+                               'reason': r.get('reason', 'no data'),
+                               'count': 0, 'monthly_cost': 0, 'items': []})
+            continue
+        categories.append({'key': key, 'label': label_for[key], 'status': 'success',
+                           'count': r.get('count', 0),
+                           'monthly_cost': r.get('monthly_cost', 0),
+                           'items': r.get('items', [])[:50],  # cap UI payload
+                           'meta': {k2: v for k2, v in r.items()
+                                    if k2 not in ('items', 'count', 'monthly_cost', 'status')}})
+
+    categories.sort(key=lambda c: c.get('monthly_cost', 0), reverse=True)
+    total = round(sum(c.get('monthly_cost', 0) for c in categories), 2)
+    idle_count = sum(c.get('count', 0) for c in categories
+                     if c['key'] in ('unattached_ebs', 'unassociated_eips',
+                                     'idle_nat', 'empty_load_balancers'))
+
+    result = {
+        'status':                       'success',
+        'categories':                   categories,
+        'total_monthly_savings':        total,
+        'idle_resource_count':          idle_count,
+        'savings_plan_coverage':        results.get('_sp', {}),
+        'reservation_coverage':         results.get('_ri', {}),
+        'cost_forecast':                results.get('_forecast', {}),
+        'tag_coverage':                 results.get('_tags', {}),
+    }
+    _cache_set(cache_k, result)
+    return result

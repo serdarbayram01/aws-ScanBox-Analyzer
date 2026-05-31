@@ -106,7 +106,7 @@ def run_assessment(profile: str, regions: list = None) -> dict:
     _update_progress(profile, 'loading_finops', 3, total_steps)
 
     # 4. Fetch FinOps data (live, optional)
-    finops_data = _fetch_finops_data(session)
+    finops_data = _fetch_finops_data(session, profile)
 
     _update_progress(profile, 'analyzing', 4, total_steps)
 
@@ -180,8 +180,10 @@ def _update_progress(profile, step, completed, total):
     }
 
 
-def _fetch_finops_data(session):
-    """Fetch cost summary from Cost Explorer (last 30 days)."""
+def _fetch_finops_data(session, profile_name=None):
+    """Fetch cost summary from Cost Explorer (last 30 days), plus the
+    multi-collector Savings Summary (idle resources, SP/RI coverage,
+    forecast, tag coverage) when a profile name is provided."""
     try:
         ce = session.client('ce', region_name=CE_REGION)
         end = date.today()
@@ -241,6 +243,16 @@ def _fetch_finops_data(session):
         # Top services by cost
         sorted_services = sorted(services.items(), key=lambda x: x[1], reverse=True)
 
+        # Multi-collector savings summary (best-effort — never fail the
+        # whole advice run if it errors).
+        savings = None
+        if profile_name:
+            try:
+                import aws_client as awsc
+                savings = awsc.fetch_savings_summary(profile_name)
+            except Exception:
+                savings = None
+
         return {
             'total_cost': round(total_cost, 2),
             'services': dict(sorted_services),
@@ -248,6 +260,7 @@ def _fetch_finops_data(session):
             'has_savings_plans': has_savings_plans,
             'top_services': sorted_services[:10],
             'region_distribution': _get_region_costs(ce, start, end),
+            'savings': savings,
         }
     except Exception:
         return None
@@ -569,7 +582,126 @@ def _analyze_costs(finops_data):
             'region': 'global',
         })
 
+    # ---------------------------------------------------------------------
+    # Data-driven savings findings (idle resources, right-sizing, tags)
+    # ---------------------------------------------------------------------
+    _evaluate_savings_findings(assessment, finops_data.get('savings') or {})
+
     return assessment
+
+
+def _severity_for(rules, **vals):
+    """Pick the first severity whose threshold is met (rules ordered HIGH→LOW)."""
+    for severity, predicate in rules:
+        if predicate(vals):
+            return severity
+    return 'LOW'
+
+
+def _add_cost_finding(assessment, template_key, details, severity):
+    """Render a COST_ADVICE_TEMPLATES entry with `details` and append to assessment."""
+    tpl = COST_ADVICE_TEMPLATES.get(template_key)
+    if not tpl:
+        return
+    try:
+        text_en = tpl['finding_en'].format(**details)
+        text_tr = tpl['finding_tr'].format(**details)
+    except (KeyError, IndexError, ValueError):
+        text_en = tpl['finding_en']
+        text_tr = tpl['finding_tr']
+    assessment['findings'].append({
+        'text_en':     text_en,
+        'text_tr':     text_tr,
+        'risk':        severity,
+        'wafr_codes':  tpl['wafr'],
+        'resource_id': '',
+        'region':      'global',
+    })
+    assessment['recommendations'].append({
+        'text_en':    tpl['recommendation_en'],
+        'text_tr':    tpl['recommendation_tr'],
+        'wafr_codes': tpl['wafr'],
+    })
+
+
+def _evaluate_savings_findings(assessment, savings):
+    """Walk the multi-collector savings summary and produce 8 dynamic findings.
+
+    Severity scales with monthly_cost / count so high-impact items rise to the
+    top of the report. Categories with `status='unavailable'` are silently
+    skipped — they may indicate missing IAM permissions, not a clean account.
+    """
+    if not savings or savings.get('status') != 'success':
+        return
+    by_key = {c['key']: c for c in savings.get('categories', [])
+              if c.get('status') == 'success'}
+
+    # 1) Unattached EBS — severity by $/mo
+    cat = by_key.get('unattached_ebs')
+    if cat and cat['count'] > 0:
+        sev = _severity_for([
+            ('HIGH',   lambda v: v['monthly_cost'] > 50),
+            ('MEDIUM', lambda v: v['monthly_cost'] > 10),
+            ('LOW',    lambda v: True),
+        ], monthly_cost=cat['monthly_cost'])
+        _add_cost_finding(assessment, 'unattached_ebs',
+                          {'count': cat['count'], 'monthly_cost': cat['monthly_cost']}, sev)
+
+    # 2) Unassociated EIPs — severity by count
+    cat = by_key.get('unassociated_eips')
+    if cat and cat['count'] > 0:
+        sev = 'HIGH' if cat['count'] > 5 else 'MEDIUM'
+        _add_cost_finding(assessment, 'unassociated_eips',
+                          {'count': cat['count'], 'monthly_cost': cat['monthly_cost']}, sev)
+
+    # 3) Long-stopped EC2
+    cat = by_key.get('stopped_ec2')
+    if cat and cat['count'] > 0:
+        max_days = max((i.get('days_stopped', 0) for i in cat.get('items', [])), default=0)
+        sev = 'HIGH' if max_days > 90 else 'MEDIUM'
+        _add_cost_finding(assessment, 'stopped_ec2_long',
+                          {'count': cat['count'], 'monthly_cost': cat['monthly_cost']}, sev)
+
+    # 4) Idle NAT gateways — every one is meaningful at ~$32/month
+    cat = by_key.get('idle_nat')
+    if cat and cat['count'] > 0:
+        _add_cost_finding(assessment, 'idle_nat_gateways',
+                          {'count': cat['count'], 'monthly_cost': cat['monthly_cost']}, 'HIGH')
+
+    # 5) Empty load balancers
+    cat = by_key.get('empty_load_balancers')
+    if cat and cat['count'] > 0:
+        _add_cost_finding(assessment, 'empty_load_balancers',
+                          {'count': cat['count'], 'monthly_cost': cat['monthly_cost']}, 'MEDIUM')
+
+    # 6) Orphan RDS snapshots
+    cat = by_key.get('orphan_rds_snaps')
+    if cat and cat['count'] > 0:
+        sev = 'HIGH' if cat['monthly_cost'] > 20 else 'LOW'
+        _add_cost_finding(assessment, 'orphan_rds_snapshots',
+                          {'count': cat['count'], 'monthly_cost': cat['monthly_cost']}, sev)
+
+    # 7) Underutilized EC2 (right-sizing hint, COST05)
+    cat = by_key.get('low_cpu_ec2')
+    if cat and cat['count'] > 0:
+        meta = cat.get('meta', {})
+        _add_cost_finding(assessment, 'underutilized_ec2_cpu', {
+            'count':     cat['count'],
+            'threshold': meta.get('threshold_pct', 5),
+            'days':      meta.get('window_days', 14),
+        }, 'HIGH')
+
+    # 8) Tag governance
+    tag = savings.get('tag_coverage') or {}
+    if tag.get('status') == 'success' and tag.get('total_resources', 0) > 0:
+        pct = tag.get('tagged_pct', 100)
+        if pct < 80:
+            sev = 'HIGH' if pct < 60 else 'MEDIUM'
+            _add_cost_finding(assessment, 'tag_governance', {
+                'tagged_pct':      pct,
+                'total_resources': tag.get('total_resources', 0),
+                'required_tags':   ', '.join(tag.get('required_tags', [])),
+            }, sev)
 
 
 def _analyze_resources(mapinv_data):

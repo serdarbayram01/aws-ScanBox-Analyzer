@@ -37,6 +37,7 @@ def run_checks(session, exclude_defaults=False, regions=None):
                         service=SERVICE, resource_id=zone_id,
                         resource_type='AWS::Route53::HostedZone', region='global',
                         frameworks={
+                                    'SOC2': ['CC6.7'],
                             'CIS': ['3.12'], 'ISO27001': ['A.13.1.2'],
                             'WAFR': {'pillar': 'Security', 'controls': ['SEC05']},
                         },
@@ -62,6 +63,7 @@ def run_checks(session, exclude_defaults=False, regions=None):
                         service=SERVICE, resource_id=zone_id,
                         resource_type='AWS::Route53::HostedZone', region='global',
                         frameworks={
+                                    'SOC2': ['CC7.2'],
                             'HIPAA': ['164.312(b)'],
                             'WAFR': {'pillar': 'Security', 'controls': ['SEC04']},
                         },

@@ -76,6 +76,29 @@
         </div>
       </div>
       <div class="all-profiles-body">
+        <!-- Profile Search (mirrors SecOps pattern) -->
+        <div class="profile-search-container">
+          <div class="profile-search-wrapper">
+            <span class="profile-search-icon">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            </span>
+            <input type="text"
+                   id="adviceProfileSearchInput"
+                   class="profile-search-input"
+                   data-i18n="profile_search_placeholder"
+                   placeholder="Search profiles..."
+                   oninput="onAdviceProfileSearch(this.value)"
+                   autocomplete="off"
+                   spellcheck="false">
+            <button id="adviceProfileSearchClear"
+                    class="profile-search-clear"
+                    style="display:none"
+                    onclick="clearAdviceProfileSearch()"
+                    aria-label="Clear search">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+        </div>
         <div class="all-profiles-actions" style="flex-wrap:wrap">
           <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-muted);cursor:pointer;white-space:nowrap">
             <input type="checkbox" id="excludeDefaults" checked style="accent-color:var(--accent)">

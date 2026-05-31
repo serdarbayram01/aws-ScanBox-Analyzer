@@ -553,6 +553,49 @@ html, body {
   overflow: hidden;
 }
 
+/* SecOps profile section hosts an absolutely-positioned Region dropdown.
+   With overflow:hidden the dropdown would be clipped at the section edge
+   and visually trapped behind the next banner. Lift the clip on this
+   section only (other .all-profiles-section instances — scan history,
+   etc. — keep their original behaviour). */
+#profileSection {
+  overflow: visible;
+}
+
+/* Framework Breakdown chart — tabbed switcher (SOC2/CIS/HIPAA/ISO27001) */
+.fw-tab-strip {
+  display: flex;
+  gap: 4px;
+}
+.fw-tab {
+  background: transparent;
+  border: 1px solid var(--border-light);
+  color: var(--text-muted);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition), border-color var(--transition);
+  font-family: var(--font-sans);
+}
+.fw-tab:hover {
+  color: var(--text-primary);
+  border-color: var(--text-muted);
+}
+.fw-tab.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #0b1220;
+}
+#profileSection .all-profiles-toggle {
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+#profileSection:not(.open) .all-profiles-toggle {
+  border-radius: var(--radius);
+}
+
 .all-profiles-toggle {
   display: flex;
   align-items: center;

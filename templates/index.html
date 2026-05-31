@@ -10,6 +10,11 @@
 </a>
 {% endblock %}
 
+{# Hide the global Tools/Reports nav-item on FinOps pages — there's no
+   dedicated FinOps reports view and the legacy /finops#reports anchor was
+   removed. Other modules keep their own Reports overrides. #}
+{% block nav_reports %}{% endblock %}
+
 {% block content %}
 <div class="page-body" id="pageBody">
 

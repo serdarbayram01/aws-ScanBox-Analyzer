@@ -1,7 +1,10 @@
 """
 SecOps — EC2 Checks
-Security groups (0.0.0.0/0 + ::/0 SSH/RDP/all), EBS default encryption, IMDSv2.
+Security groups (0.0.0.0/0 + ::/0 SSH/RDP/all), EBS default encryption, IMDSv2,
+public AMIs, old EBS snapshots.
 """
+
+from datetime import datetime, timedelta, timezone
 
 from .base import make_finding, not_available
 
@@ -30,6 +33,7 @@ def run_checks(session, exclude_defaults=False, regions=None):
             findings += _check_security_groups(ec2, region, exclude_defaults)
             findings += _check_imdsv2(ec2, region)
             findings += _check_public_amis(ec2, region)
+            findings += _check_old_snapshots(ec2, region)
         except Exception as exc:
             findings.append(not_available(f'ec2_{region}', SERVICE, str(exc)))
     return findings
@@ -55,6 +59,7 @@ def _check_ebs_encryption(ec2, region):
             service=SERVICE, resource_id=region,
             resource_type='AWS::EC2::EBSEncryptionByDefault', region=region,
             frameworks={'CIS': ['2.2.1'], 'HIPAA': ['164.312(a)(2)(iv)'], 'ISO27001': ['A.10.1.1'],
+                        'SOC2': ['CC6.7', 'C1.2'],
                         'WAFR': {'pillar': 'Security', 'controls': ['SEC06']}},
             remediation=f'EC2 Console ({region}) → Settings → EBS Encryption → Enable.',
             remediation_tr=f'EC2 Konsol ({region}) → Ayarlar → EBS Şifreleme → Etkinleştir.',
@@ -100,6 +105,7 @@ def _check_security_groups(ec2, region, exclude_defaults):
                                     resource_name=sg_name, region=region,
                                     is_default_resource=is_default,
                                     frameworks={'CIS': ['5.2'], 'ISO27001': ['A.13.1.1'],
+                                                'SOC2': ['CC6.6', 'CC6.1'],
                                                 'WAFR': {'pillar': 'Security', 'controls': ['SEC05']}},
                                     remediation=f'Remove SSH (22) from {cidr_disp} — restrict to specific IPs or a bastion host.',
                                     remediation_tr=f'{cidr_disp} üzerinden SSH (22) kuralını kaldırın — belirli IP\'lere veya bastion sunucusuna kısıtlayın.',
@@ -119,6 +125,7 @@ def _check_security_groups(ec2, region, exclude_defaults):
                                     resource_name=sg_name, region=region,
                                     is_default_resource=is_default,
                                     frameworks={'CIS': ['5.3'], 'ISO27001': ['A.13.1.1'],
+                                                'SOC2': ['CC6.6', 'CC6.1'],
                                                 'WAFR': {'pillar': 'Security', 'controls': ['SEC05']}},
                                     remediation=f'Remove RDP (3389) from {cidr_disp} — restrict to specific IPs.',
                                     remediation_tr=f'{cidr_disp} üzerinden RDP (3389) kuralını kaldırın — belirli IP\'lere kısıtlayın.',
@@ -138,6 +145,7 @@ def _check_security_groups(ec2, region, exclude_defaults):
                                     resource_name=sg_name, region=region,
                                     is_default_resource=is_default,
                                     frameworks={'CIS': ['5.1'], 'ISO27001': ['A.13.1.1'],
+                                                'SOC2': ['CC6.6', 'CC6.1'],
                                                 'WAFR': {'pillar': 'Security', 'controls': ['SEC05']}},
                                     remediation=f'Restrict inbound rules — never allow all traffic from {cidr_disp}.',
                                     remediation_tr=f'Gelen kuralları kısıtlayın — {cidr_disp} üzerinden tüm trafiğe asla izin vermeyin.',
@@ -163,6 +171,7 @@ def _check_security_groups(ec2, region, exclude_defaults):
                                     resource_name=sg_name, region=region,
                                     is_default_resource=is_default,
                                     frameworks={'CIS': ['5.4'], 'ISO27001': ['A.13.1.1'],
+                                                'SOC2': ['CC6.6'],
                                                 'WAFR': {'pillar': 'Security', 'controls': ['SEC05']}},
                                     remediation=f'Restrict egress rules on {sg_id} — limit outbound to required ports/destinations only.',
                                     remediation_tr=f'{sg_id} giden kurallarını kısıtlayın — giden trafiği yalnızca gerekli portlar/hedeflerle sınırlayın.',
@@ -198,6 +207,7 @@ def _check_imdsv2(ec2, region):
                         resource_type='AWS::EC2::Instance',
                         resource_name=name, region=region,
                         frameworks={'CIS': ['5.6'], 'ISO27001': ['A.13.1.1'],
+                                    'SOC2': ['CC6.1', 'CC6.7'],
                                     'WAFR': {'pillar': 'Security', 'controls': ['SEC05']}},
                         remediation=f'EC2 Console → {iid} → Actions → Modify instance metadata → Set HttpTokens=required.',
                         remediation_tr=f'EC2 Konsol → {iid} → Eylemler → Instance meta verilerini değiştir → HttpTokens=required ayarlayın.',
@@ -228,12 +238,92 @@ def _check_public_amis(ec2, region):
                     resource_type='AWS::EC2::Image',
                     resource_name=ami_name, region=region,
                     frameworks={'CIS': ['2.2.2'], 'HIPAA': ['164.312(a)(1)'], 'ISO27001': ['A.13.1.3'],
+                                'SOC2': ['CC6.6', 'C1.1'],
                                 'WAFR': {'pillar': 'Security', 'controls': ['SEC06']}},
                     remediation=f'EC2 Console → AMIs → {ami_id} → Actions → Edit AMI permissions → Set to Private.',
                     remediation_tr=f'EC2 Konsol → AMI\'ler → {ami_id} → Eylemler → AMI izinlerini düzenle → Özel olarak ayarlayın.',
                 ))
     except Exception as exc:
         findings.append(not_available(f'ec2_public_ami_{region}', SERVICE, str(exc)))
+    return findings
+
+
+def _check_old_snapshots(ec2, region, age_days=90):
+    """Self-owned EBS snapshots older than `age_days`. Accumulates storage
+    cost and obscures the live recovery set. Reports a single aggregated
+    finding per region (capped sample list in `details`)."""
+    findings = []
+    try:
+        cutoff = datetime.now(timezone.utc) - timedelta(days=age_days)
+        old = []
+        total_gb = 0
+        paginator = ec2.get_paginator('describe_snapshots')
+        for page in paginator.paginate(OwnerIds=['self'], PaginationConfig={'PageSize': 200}):
+            for snap in page.get('Snapshots', []):
+                start = snap.get('StartTime')
+                if start and start < cutoff:
+                    old.append({
+                        'snapshot_id': snap['SnapshotId'],
+                        'volume_size': snap.get('VolumeSize', 0),
+                        'description': (snap.get('Description', '') or '')[:80],
+                        'started':     start.isoformat(),
+                    })
+                    total_gb += snap.get('VolumeSize', 0)
+
+        if not old:
+            return []
+
+        # Severity by storage cost (snapshot price ~$0.05/GB-mo for EBS standard tier)
+        approx_monthly = round(total_gb * 0.05, 2)
+        if approx_monthly > 50:
+            severity = 'MEDIUM'
+        elif approx_monthly > 10:
+            severity = 'LOW'
+        else:
+            severity = 'INFO'
+
+        findings.append(make_finding(
+            id=f'ec2_old_snapshots_{region}',
+            title=f'Old EBS snapshots (>{age_days}d): {region}',
+            title_tr=f'Eski EBS snapshot\'lar ({age_days}g+): {region}',
+            description=(
+                f'Found {len(old)} EBS snapshot(s) older than {age_days} days in {region}, '
+                f'consuming ~{total_gb} GB (~${approx_monthly}/month). Old snapshots inflate '
+                f'storage cost and blur the recovery baseline; review lifecycle policy.'
+            ),
+            description_tr=(
+                f'{region} bölgesinde {age_days} günden eski {len(old)} EBS snapshot bulundu, '
+                f'~{total_gb} GB tüketiyor (~aylık ${approx_monthly}). Eski snapshot\'lar depolama '
+                f'maliyetini artırır ve kurtarma temelini bulanıklaştırır; yaşam döngüsü politikası inceleyin.'
+            ),
+            severity=severity, status='WARNING',
+            service=SERVICE, resource_id=region,
+            resource_type='AWS::EC2::Snapshot', region=region,
+            frameworks={
+                'CIS':      ['2.1.3'],
+                'ISO27001': ['A.12.3.1'],
+                'SOC2':     ['A1.2', 'CC6.5'],
+                'WAFR':     {'pillar': 'Cost Optimization', 'controls': ['COST04']},
+            },
+            remediation=(
+                f'EC2 → Snapshots ({region}) → Filter Start time before '
+                f'{(datetime.now(timezone.utc) - timedelta(days=age_days)).strftime("%Y-%m-%d")} → '
+                f'Review & delete obsolete. Set DLM (Data Lifecycle Manager) policy for retention.'
+            ),
+            remediation_tr=(
+                f'EC2 → Snapshots ({region}) → Başlangıç tarihi filtresi: '
+                f'{(datetime.now(timezone.utc) - timedelta(days=age_days)).strftime("%Y-%m-%d")} öncesi → '
+                f'İnceleyip silin. Saklama için DLM (Data Lifecycle Manager) politikası tanımlayın.'
+            ),
+            details={
+                'count':           len(old),
+                'total_gb':        total_gb,
+                'approx_monthly':  approx_monthly,
+                'sample_snapshots': old[:15],
+            },
+        ))
+    except Exception as exc:
+        findings.append(not_available(f'ec2_old_snapshots_{region}', SERVICE, str(exc)))
     return findings
 
 

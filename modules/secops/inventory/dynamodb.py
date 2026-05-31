@@ -50,6 +50,7 @@ def run_checks(session, exclude_defaults=False, regions=None):
                             service=SERVICE, resource_id=table_arn,
                             resource_type='AWS::DynamoDB::Table', region=region,
                             frameworks={
+                                        'SOC2': ['CC6.7', 'C1.2'],
                                 'CIS': ['2.4'],
                                 'HIPAA': ['164.312(a)(2)(iv)'],
                                 'ISO27001': ['A.10.1.1'],
@@ -79,6 +80,7 @@ def run_checks(session, exclude_defaults=False, regions=None):
                             service=SERVICE, resource_id=table_arn,
                             resource_type='AWS::DynamoDB::Table', region=region,
                             frameworks={
+                                        'SOC2': ['A1.2'],
                                 'CIS': ['2.7'],
                                 'HIPAA': ['164.308(a)(7)(ii)(B)'],
                                 'ISO27001': ['A.12.3.1'],
@@ -100,6 +102,7 @@ def run_checks(session, exclude_defaults=False, regions=None):
                             service=SERVICE, resource_id=table_arn,
                             resource_type='AWS::DynamoDB::Table', region=region,
                             frameworks={
+                                        'SOC2': ['CC6.7'],
                                 'CIS': ['2.7'],
                                 'ISO27001': ['A.12.3.1'],
                                 'WAFR': {'pillar': 'Reliability', 'controls': ['REL09']},

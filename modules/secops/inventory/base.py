@@ -7,7 +7,8 @@ from typing import Optional
 
 
 SEVERITIES = ('CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFO')
-STATUSES   = ('PASS', 'FAIL', 'WARNING', 'NOT_AVAILABLE', 'MANUAL')
+STATUSES   = ('PASS', 'FAIL', 'WARNING', 'NOT_AVAILABLE', 'MANUAL', 'SUPPRESSED')
+DELTAS     = (None, 'new', 'fixed', 'regression', 'persisting')
 
 
 def make_finding(
@@ -29,8 +30,15 @@ def make_finding(
     remediation_tr: str     = '',
     is_default_resource: bool = False,
     details: Optional[dict] = None,
+    delta: Optional[str]    = None,
+    suppression: Optional[dict] = None,
 ) -> dict:
-    """Return a normalised finding dictionary."""
+    """Return a normalised finding dictionary.
+
+    `delta` is set by scanner._compute_deltas after diff vs previous scan.
+    `suppression` is set by scanner._apply_suppressions when the finding has
+    been marked as accepted-risk; status will be 'SUPPRESSED' in that case.
+    """
     return {
         'id':                   id,
         'title':                title,
@@ -49,6 +57,8 @@ def make_finding(
         'remediation_tr':       remediation_tr,
         'is_default_resource':  is_default_resource,
         'details':              details or {},
+        'delta':                delta,
+        'suppression':          suppression,
     }
 
 

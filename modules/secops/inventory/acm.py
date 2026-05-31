@@ -48,6 +48,7 @@ def run_checks(session, exclude_defaults=False, regions=None):
                             service=SERVICE, resource_id=arn,
                             resource_type='AWS::CertificateManager::Certificate', region=region,
                             frameworks={
+                                        'SOC2': ['A1.2'],
                                 'CIS': ['2.1.3'], 'HIPAA': ['164.312(e)(2)(ii)'],
                                 'ISO27001': ['A.10.1.2'],
                                 'WAFR': {'pillar': 'Security', 'controls': ['SEC09']},
@@ -73,6 +74,7 @@ def run_checks(session, exclude_defaults=False, regions=None):
                                 service=SERVICE, resource_id=arn,
                                 resource_type='AWS::CertificateManager::Certificate', region=region,
                                 frameworks={
+                                            'SOC2': ['A1.2'],
                                     'ISO27001': ['A.10.1.2'],
                                     'WAFR': {'pillar': 'Security', 'controls': ['SEC09']},
                                 },
@@ -91,6 +93,7 @@ def run_checks(session, exclude_defaults=False, regions=None):
                                 service=SERVICE, resource_id=arn,
                                 resource_type='AWS::CertificateManager::Certificate', region=region,
                                 frameworks={
+                                            'SOC2': ['A1.2'],
                                     'ISO27001': ['A.10.1.2'],
                                     'WAFR': {'pillar': 'Security', 'controls': ['SEC09']},
                                 },
@@ -108,7 +111,8 @@ def run_checks(session, exclude_defaults=False, regions=None):
                                 severity='LOW', status='PASS',
                                 service=SERVICE, resource_id=arn,
                                 resource_type='AWS::CertificateManager::Certificate', region=region,
-                                frameworks={'WAFR': {'pillar': 'Security', 'controls': ['SEC09']}},
+                                frameworks={
+                                            'SOC2': ['A1.2'],'WAFR': {'pillar': 'Security', 'controls': ['SEC09']}},
                                 remediation='No action required.',
                                 remediation_tr='İşlem gerekmiyor.',
                                 details={'days_left': days_left},
@@ -125,7 +129,8 @@ def run_checks(session, exclude_defaults=False, regions=None):
                             severity='HIGH', status='FAIL',
                             service=SERVICE, resource_id=arn,
                             resource_type='AWS::CertificateManager::Certificate', region=region,
-                            frameworks={'WAFR': {'pillar': 'Security', 'controls': ['SEC09']}},
+                            frameworks={
+                                        'SOC2': ['A1.2'],'WAFR': {'pillar': 'Security', 'controls': ['SEC09']}},
                             remediation=f'Check DNS/email validation records for {domain} and reissue the certificate.',
                             remediation_tr=f'{domain} için DNS/e-posta doğrulama kayıtlarını kontrol edin ve sertifikayı yeniden yayınlayın.',
                         ))

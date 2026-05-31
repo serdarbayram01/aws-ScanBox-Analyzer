@@ -37,6 +37,7 @@ def run_checks(session, exclude_defaults=False, regions=None):
                         service=SERVICE, resource_id=repo_arn,
                         resource_type='AWS::ECR::Repository', region=region,
                         frameworks={
+                                    'SOC2': ['CC3.2', 'CC7.1'],
                             'CIS': ['5.1'], 'ISO27001': ['A.12.6.1'],
                             'WAFR': {'pillar': 'Security', 'controls': ['SEC06']},
                         },
@@ -55,6 +56,7 @@ def run_checks(session, exclude_defaults=False, regions=None):
                         service=SERVICE, resource_id=repo_arn,
                         resource_type='AWS::ECR::Repository', region=region,
                         frameworks={
+                                    'SOC2': ['CC8.1', 'PI1.4'],
                             'WAFR': {'pillar': 'Security', 'controls': ['SEC06']},
                         },
                         remediation=f'ECR Console → Repositories → {repo_name} → Edit → Tag immutability → Enabled.',
@@ -80,6 +82,7 @@ def run_checks(session, exclude_defaults=False, regions=None):
                         service=SERVICE, resource_id=repo_arn,
                         resource_type='AWS::ECR::Repository', region=region,
                         frameworks={
+                                    'SOC2': ['A1.2'],
                             'WAFR': {'pillar': 'Cost Optimization', 'controls': ['COST07']},
                         },
                         remediation=f'ECR Console → Repositories → {repo_name} → Lifecycle policy → Create a policy to expire untagged images after 30 days.',
@@ -107,6 +110,7 @@ def run_checks(session, exclude_defaults=False, regions=None):
                     service=SERVICE, resource_id=repo_arn,
                     resource_type='AWS::ECR::PublicRepository', region='us-east-1',
                     frameworks={
+                                'SOC2': ['CC3.2'],
                         'ISO27001': ['A.9.4.1'],
                         'WAFR': {'pillar': 'Security', 'controls': ['SEC06']},
                     },

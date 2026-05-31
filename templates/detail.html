@@ -4,6 +4,9 @@
 {% block page_title %}<span data-i18n="page_detail">Profile Detail</span>{% endblock %}
 {% block page_subtitle %}<span id="profileName" style="color:var(--accent);font-weight:600"></span>{% endblock %}
 
+{# Hide Tools/Reports nav on FinOps pages — see templates/index.html. #}
+{% block nav_reports %}{% endblock %}
+
 {% block content %}
 <div class="page-body" id="pageBody">
 
@@ -104,6 +107,37 @@
       <canvas id="regionChart"></canvas>
     </div>
     <div id="globalServicesDetail"></div>
+  </div>
+
+  <!-- ===== Savings Opportunities ===== -->
+  <div class="table-card collapsible-section open" id="savingsSection" style="margin-bottom:20px">
+    <div class="table-card-header collapsible-toggle" onclick="toggleSection('savingsSection')">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div class="table-card-title" data-i18n="finops_savings_title">Savings Opportunities</div>
+        <span id="savingsTotalBadge" class="badge"
+              style="background:#16a34a;font-size:11px;padding:3px 8px;display:none"></span>
+      </div>
+      <span class="collapsible-arrow">▼</span>
+    </div>
+    <div class="collapsible-content">
+      <!-- KPI strip -->
+      <div id="savingsKpiStrip"
+           style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin:12px 0">
+        <div class="loading-overlay"><span class="spinner"></span></div>
+      </div>
+      <!-- Sorted savings bar -->
+      <div style="position:relative;height:220px;margin-top:6px">
+        <canvas id="savingsBarChart"></canvas>
+      </div>
+      <!-- SP/RI gauges + Tag coverage donut -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-top:14px">
+        <div id="spCoverageWrap"></div>
+        <div id="riCoverageWrap"></div>
+        <div id="tagCoverageWrap" style="position:relative;height:200px"></div>
+      </div>
+      <!-- Per-category drill-down tables -->
+      <div id="savingsCategoryList" style="margin-top:14px"></div>
+    </div>
   </div>
 
   <!-- ===== Budgets ===== -->

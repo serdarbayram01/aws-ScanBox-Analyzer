@@ -280,12 +280,12 @@
                 </div>
               </div>
             </div>
-            <!-- Default vs Non-Default -->
+            <!-- Default vs Non-Default — two-zone treemap -->
             <div class="chart-card" style="display:flex;flex-direction:column">
               <div class="chart-header">
                 <div class="chart-title" data-i18n="mapinv_default_split">Default vs Custom Resources</div>
               </div>
-              <div style="position:relative;flex:1;min-height:380px;overflow:hidden"><canvas id="defaultDonutChart"></canvas></div>
+              <div id="defaultTreemapWrap" style="flex:1;min-height:380px;overflow:hidden;padding:8px;display:flex;flex-direction:column"></div>
             </div>
           </div>
         </div>
@@ -369,8 +369,20 @@
     <!-- Service Table (hidden until scan) -->
     <div id="serviceTableSection" style="display:none;margin-bottom:20px">
       <div class="table-card">
-        <div class="table-card-header">
+        <div class="table-card-header" style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
           <div class="table-card-title" data-i18n="mapinv_services">Services</div>
+          <button class="btn btn-outline btn-sm" id="mapinvExportAllBtn"
+                  onclick="exportAllServicesCsv()"
+                  title="Download all resources as CSV"
+                  data-i18n-title="mapinv_export_all_title"
+                  style="display:flex;align-items:center;gap:6px">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            <span data-i18n="mapinv_export_all">Export all (CSV)</span>
+          </button>
         </div>
         <div style="overflow-x:auto">
           <table class="data-table" id="serviceTable">
@@ -399,6 +411,18 @@
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
             </button>
             <div class="table-card-title" id="detailTitle">—</div>
+            <button class="btn btn-outline btn-sm" id="mapinvExportServiceBtn"
+                    onclick="exportServiceDetailCsv()"
+                    title="Download this service as CSV"
+                    data-i18n-title="mapinv_export_service_title"
+                    aria-label="Export CSV"
+                    style="padding:4px 8px">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+            </button>
           </div>
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
             <input type="text" id="detailSearch" placeholder="Search..."

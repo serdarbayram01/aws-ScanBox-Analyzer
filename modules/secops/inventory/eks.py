@@ -59,6 +59,7 @@ def run_checks(session, exclude_defaults=False, regions=None):
                             service=SERVICE, resource_id=cluster_arn,
                             resource_type='AWS::EKS::Cluster', region=region,
                             frameworks={
+                                        'SOC2': ['CC6.6'],
                                 'CIS': ['5.4.2'], 'ISO27001': ['A.13.1.3'],
                                 'WAFR': {'pillar': 'Security', 'controls': ['SEC05']},
                             },
@@ -102,6 +103,7 @@ def run_checks(session, exclude_defaults=False, regions=None):
                             service=SERVICE, resource_id=cluster_arn,
                             resource_type='AWS::EKS::Cluster', region=region,
                             frameworks={
+                                        'SOC2': ['CC7.2', 'CC2.1'],
                                 'CIS': ['5.1.1'], 'HIPAA': ['164.312(b)'],
                                 'ISO27001': ['A.12.4.1'],
                                 'WAFR': {'pillar': 'Security', 'controls': ['SEC04']},
@@ -136,6 +138,7 @@ def run_checks(session, exclude_defaults=False, regions=None):
                             service=SERVICE, resource_id=cluster_arn,
                             resource_type='AWS::EKS::Cluster', region=region,
                             frameworks={
+                                        'SOC2': ['C1.2'],
                                 'CIS': ['5.3.1'], 'HIPAA': ['164.312(a)(2)(iv)'],
                                 'ISO27001': ['A.10.1.1'],
                                 'WAFR': {'pillar': 'Security', 'controls': ['SEC08']},
@@ -169,6 +172,7 @@ def run_checks(session, exclude_defaults=False, regions=None):
                             service=SERVICE, resource_id=cluster_arn,
                             resource_type='AWS::EKS::Cluster', region=region,
                             frameworks={
+                                        'SOC2': ['CC6.6'],
                                 'CIS': ['5.1.2'],
                                 'WAFR': {'pillar': 'Security', 'controls': ['SEC03']},
                             },
@@ -224,6 +228,7 @@ def run_checks(session, exclude_defaults=False, regions=None):
                                             service=SERVICE, resource_id=ng_arn,
                                             resource_type='AWS::EKS::Nodegroup', region=region,
                                             frameworks={
+                                                        'SOC2': ['CC6.6'],
                                                 'CIS': ['5.4.3'], 'ISO27001': ['A.14.2.5'],
                                                 'WAFR': {'pillar': 'Security', 'controls': ['SEC05']},
                                             },

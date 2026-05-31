@@ -18,7 +18,8 @@ def run_checks(session, exclude_defaults=False, regions=None):
                 severity='CRITICAL', status='FAIL',
                 service=SERVICE, resource_id='account',
                 resource_type='AWS::CloudTrail::Trail',
-                frameworks={'CIS': ['3.1'], 'HIPAA': ['164.312(b)'], 'ISO27001': ['A.12.4.1'],
+                frameworks={
+                            'SOC2': ['CC7.2'],'CIS': ['3.1'], 'HIPAA': ['164.312(b)'], 'ISO27001': ['A.12.4.1'],
                             'WAFR': {'pillar': 'Security', 'controls': ['SEC04']}},
                 remediation='CloudTrail Console → Create trail → Enable for all regions.',
                 remediation_tr='CloudTrail Konsol → Trail oluştur → Tüm bölgeler için etkinleştir.',
@@ -41,7 +42,8 @@ def run_checks(session, exclude_defaults=False, regions=None):
                 description_tr=f'{name} trail\'i tüm API aktivitesini yakalamak için çok bölgeli olmalıdır.',
                 severity='HIGH', status='PASS' if multi else 'FAIL',
                 service=SERVICE, resource_id=arn, resource_type='AWS::CloudTrail::Trail',
-                frameworks={'CIS': ['3.1'], 'ISO27001': ['A.12.4.1'],
+                frameworks={
+                            'SOC2': ['CC7.2'],'CIS': ['3.1'], 'ISO27001': ['A.12.4.1'],
                             'WAFR': {'pillar': 'Security', 'controls': ['SEC04']}},
                 remediation=f'CloudTrail → {name} → Edit → Enable for all regions.',
                 remediation_tr=f'CloudTrail → {name} → Düzenle → Tüm bölgeler için etkinleştir.',
@@ -57,7 +59,8 @@ def run_checks(session, exclude_defaults=False, regions=None):
                 description_tr=f'{name} trail\'i log dosyası doğrulaması kurcalamayı tespit eder.',
                 severity='HIGH', status='PASS' if validation else 'FAIL',
                 service=SERVICE, resource_id=arn, resource_type='AWS::CloudTrail::Trail',
-                frameworks={'CIS': ['3.2'], 'ISO27001': ['A.12.4.2'],
+                frameworks={
+                            'SOC2': ['CC7.2', 'PI1.4'],'CIS': ['3.2'], 'ISO27001': ['A.12.4.2'],
                             'WAFR': {'pillar': 'Security', 'controls': ['SEC04']}},
                 remediation=f'CloudTrail → {name} → Edit → Enable log file validation.',
                 remediation_tr=f'CloudTrail → {name} → Düzenle → Log dosyası doğrulamayı etkinleştir.',
@@ -73,7 +76,8 @@ def run_checks(session, exclude_defaults=False, regions=None):
                 description_tr=f'{name} trail\'i gerçek zamanlı uyarı için CloudWatch\'a log göndermelidir.',
                 severity='MEDIUM', status='PASS' if cw_arn else 'FAIL',
                 service=SERVICE, resource_id=arn, resource_type='AWS::CloudTrail::Trail',
-                frameworks={'CIS': ['3.4'], 'HIPAA': ['164.312(b)'], 'ISO27001': ['A.12.4.1'],
+                frameworks={
+                            'SOC2': ['CC7.2'],'CIS': ['3.4'], 'HIPAA': ['164.312(b)'], 'ISO27001': ['A.12.4.1'],
                             'WAFR': {'pillar': 'Security', 'controls': ['SEC04']}},
                 remediation=f'CloudTrail → {name} → Edit → CloudWatch Logs → Configure.',
                 remediation_tr=f'CloudTrail → {name} → Düzenle → CloudWatch Logs → Yapılandır.',
@@ -89,7 +93,8 @@ def run_checks(session, exclude_defaults=False, regions=None):
                 description_tr=f'{name} trail\'i log dosyaları için KMS şifrelemesi kullanmalıdır.',
                 severity='MEDIUM', status='PASS' if kms else 'FAIL',
                 service=SERVICE, resource_id=arn, resource_type='AWS::CloudTrail::Trail',
-                frameworks={'CIS': ['3.7'], 'HIPAA': ['164.312(a)(2)(iv)'], 'ISO27001': ['A.10.1.1'],
+                frameworks={
+                            'SOC2': ['CC6.7', 'C1.2'],'CIS': ['3.7'], 'HIPAA': ['164.312(a)(2)(iv)'], 'ISO27001': ['A.10.1.1'],
                             'WAFR': {'pillar': 'Security', 'controls': ['SEC06']}},
                 remediation=f'CloudTrail → {name} → Edit → Log file SSE-KMS encryption → Enable.',
                 remediation_tr=f'CloudTrail → {name} → Düzenle → Log dosyası SSE-KMS şifrelemesi → Etkinleştir.',
@@ -107,7 +112,8 @@ def run_checks(session, exclude_defaults=False, regions=None):
                     description_tr=f'{name} trail\'i günlükleme durumu aktif olmalıdır.',
                     severity='CRITICAL', status='PASS' if logging_on else 'FAIL',
                     service=SERVICE, resource_id=arn, resource_type='AWS::CloudTrail::Trail',
-                    frameworks={'CIS': ['3.1'], 'ISO27001': ['A.12.4.1'],
+                    frameworks={
+                                'SOC2': ['CC7.2'],'CIS': ['3.1'], 'ISO27001': ['A.12.4.1'],
                                 'WAFR': {'pillar': 'Security', 'controls': ['SEC04']}},
                     remediation=f'CloudTrail → {name} → Start logging.',
                     remediation_tr=f'CloudTrail → {name} → Günlüklemeyi başlat.',
@@ -154,6 +160,7 @@ def run_checks(session, exclude_defaults=False, regions=None):
                     severity='HIGH', status='PASS' if mgmt_events_included else 'FAIL',
                     service=SERVICE, resource_id=arn, resource_type='AWS::CloudTrail::Trail',
                     frameworks={
+                                'SOC2': ['CC7.2'],
                         'CIS': ['3.1'], 'HIPAA': ['164.312(b)'], 'ISO27001': ['A.12.4.1'],
                         'WAFR': {'pillar': 'Security', 'controls': ['SEC04']},
                     },
@@ -168,6 +175,121 @@ def run_checks(session, exclude_defaults=False, regions=None):
                 ))
             except Exception as exc:
                 findings.append(not_available(f'cloudtrail_event_selectors_{name}', SERVICE, str(exc)))
+
+            # Data events — capture S3 object / Lambda invocation activity
+            try:
+                selectors_resp = ct_home.get_event_selectors(TrailName=arn)
+                data_events_included = False
+                for sel in selectors_resp.get('EventSelectors', []):
+                    if sel.get('DataResources'):
+                        data_events_included = True
+                        break
+                if not data_events_included:
+                    for adv in selectors_resp.get('AdvancedEventSelectors', []):
+                        for fs in adv.get('FieldSelectors', []):
+                            if fs.get('Field') == 'eventCategory' and 'Data' in fs.get('Equals', []):
+                                data_events_included = True
+                                break
+                        if data_events_included:
+                            break
+
+                findings.append(make_finding(
+                    id=f'cloudtrail_data_events_{name}',
+                    title=f'CloudTrail data events enabled: {name}',
+                    title_tr=f'CloudTrail veri olayları etkin: {name}',
+                    description=(
+                        f'Trail {name} {"includes" if data_events_included else "does not include"} '
+                        f'data events. Data events log S3 object operations (GetObject/PutObject) and '
+                        f'Lambda invocations — required for PCI DSS 10.3.2 and detailed forensics.'
+                    ),
+                    description_tr=(
+                        f'{name} trail\'i veri olaylarını '
+                        f'{"içeriyor" if data_events_included else "içermiyor"}. '
+                        f'Veri olayları S3 nesne işlemlerini (GetObject/PutObject) ve Lambda '
+                        f'çağrılarını kaydeder — PCI DSS 10.3.2 ve detaylı adli inceleme için gereklidir.'
+                    ),
+                    severity='MEDIUM', status='PASS' if data_events_included else 'WARNING',
+                    service=SERVICE, resource_id=arn, resource_type='AWS::CloudTrail::Trail',
+                    frameworks={
+                        'SOC2':     ['CC7.2'],
+                        'HIPAA':    ['164.312(b)'],
+                        'ISO27001': ['A.12.4.1', 'A.12.4.3'],
+                        'WAFR':     {'pillar': 'Security', 'controls': ['SEC04']},
+                    },
+                    remediation=(
+                        f'CloudTrail → {name} → Edit → Data events → '
+                        f'Enable S3 object and Lambda function invocation logging. '
+                        f'Note: data events incur extra cost — scope to sensitive resources.'
+                    ),
+                    remediation_tr=(
+                        f'CloudTrail → {name} → Düzenle → Veri olayları → '
+                        f'S3 nesne ve Lambda çağrı günlüklemesini etkinleştir. '
+                        f'Not: veri olayları ek maliyetlidir — hassas kaynaklarla sınırlandırın.'
+                    ),
+                ))
+            except Exception as exc:
+                findings.append(not_available(f'cloudtrail_data_events_{name}', SERVICE, str(exc)))
+
+            # Insight events — ML-based unusual API call detection
+            try:
+                insight_resp = ct_home.get_insight_selectors(TrailName=arn)
+                insight_types = [s.get('InsightType', '')
+                                 for s in insight_resp.get('InsightSelectors', [])]
+                insights_on = bool(insight_types)
+                findings.append(make_finding(
+                    id=f'cloudtrail_insight_events_{name}',
+                    title=f'CloudTrail Insight events enabled: {name}',
+                    title_tr=f'CloudTrail Insight olayları etkin: {name}',
+                    description=(
+                        f'Trail {name} {"has" if insights_on else "does not have"} Insight events. '
+                        f'Insights ({", ".join(insight_types) or "ApiCallRateInsight, ApiErrorRateInsight"}) '
+                        f'use ML to detect unusual API patterns (rate / error spikes).'
+                    ),
+                    description_tr=(
+                        f'{name} trail\'inde Insight olayları '
+                        f'{"var" if insights_on else "yok"}. '
+                        f'Insights, alışılmadık API desenlerini (oran / hata sıçramaları) ML ile tespit eder.'
+                    ),
+                    severity='LOW', status='PASS' if insights_on else 'WARNING',
+                    service=SERVICE, resource_id=arn, resource_type='AWS::CloudTrail::Trail',
+                    frameworks={
+                        'SOC2':     ['CC7.2', 'CC3.2'],
+                        'ISO27001': ['A.12.4.1', 'A.16.1.4'],
+                        'WAFR':     {'pillar': 'Security', 'controls': ['SEC04']},
+                    },
+                    remediation=(
+                        f'CloudTrail → {name} → Edit → Insight events → '
+                        f'Enable ApiCallRateInsight and ApiErrorRateInsight. '
+                        f'Findings appear under CloudTrail Insights / EventBridge events.'
+                    ),
+                    remediation_tr=(
+                        f'CloudTrail → {name} → Düzenle → Insight olayları → '
+                        f'ApiCallRateInsight ve ApiErrorRateInsight etkinleştir. '
+                        f'Bulgular CloudTrail Insights / EventBridge olaylarında görünür.'
+                    ),
+                ))
+            except ClientError as ce:
+                if ce.response.get('Error', {}).get('Code') == 'InsightNotEnabledException':
+                    findings.append(make_finding(
+                        id=f'cloudtrail_insight_events_{name}',
+                        title=f'CloudTrail Insight events enabled: {name}',
+                        title_tr=f'CloudTrail Insight olayları etkin: {name}',
+                        description=f'Trail {name} does not have Insight events configured.',
+                        description_tr=f'{name} trail\'inde Insight olayları yapılandırılmamış.',
+                        severity='LOW', status='WARNING',
+                        service=SERVICE, resource_id=arn, resource_type='AWS::CloudTrail::Trail',
+                        frameworks={
+                            'SOC2':     ['CC7.2', 'CC3.2'],
+                            'ISO27001': ['A.12.4.1', 'A.16.1.4'],
+                            'WAFR':     {'pillar': 'Security', 'controls': ['SEC04']},
+                        },
+                        remediation=f'CloudTrail → {name} → Edit → Insights → enable.',
+                        remediation_tr=f'CloudTrail → {name} → Düzenle → Insights → etkinleştir.',
+                    ))
+                else:
+                    findings.append(not_available(f'cloudtrail_insight_events_{name}', SERVICE, str(ce)))
+            except Exception as exc:
+                findings.append(not_available(f'cloudtrail_insight_events_{name}', SERVICE, str(exc)))
 
             # Trail S3 bucket encryption
             bucket_name = trail.get('S3BucketName', '')
@@ -192,6 +314,7 @@ def run_checks(session, exclude_defaults=False, regions=None):
                         service=SERVICE, resource_id=arn, resource_type='AWS::CloudTrail::Trail',
                         resource_name=bucket_name,
                         frameworks={
+                                    'SOC2': ['CC7.2'],
                             'CIS': ['3.7'], 'HIPAA': ['164.312(a)(2)(iv)'], 'ISO27001': ['A.10.1.1'],
                             'WAFR': {'pillar': 'Security', 'controls': ['SEC06']},
                         },
@@ -219,6 +342,7 @@ def run_checks(session, exclude_defaults=False, regions=None):
                             service=SERVICE, resource_id=arn, resource_type='AWS::CloudTrail::Trail',
                             resource_name=bucket_name,
                             frameworks={
+                                        'SOC2': ['CC7.2'],
                                 'CIS': ['3.7'], 'HIPAA': ['164.312(a)(2)(iv)'], 'ISO27001': ['A.10.1.1'],
                                 'WAFR': {'pillar': 'Security', 'controls': ['SEC06']},
                             },

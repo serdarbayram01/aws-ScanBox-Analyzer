@@ -38,6 +38,7 @@ def run_checks(session, exclude_defaults=False, regions=None):
                         service=SERVICE, resource_id=sid,
                         resource_type='AWS::SecretsManager::Secret', region=region,
                         frameworks={
+                                    'SOC2': ['CC6.1', 'C1.2'],
                             'CIS': ['1.14'], 'HIPAA': ['164.312(a)(2)(iv)'],
                             'ISO27001': ['A.9.4.3'],
                             'WAFR': {'pillar': 'Security', 'controls': ['SEC07']},
@@ -61,6 +62,7 @@ def run_checks(session, exclude_defaults=False, regions=None):
                                 service=SERVICE, resource_id=sid,
                                 resource_type='AWS::SecretsManager::Secret', region=region,
                                 frameworks={
+                                            'SOC2': ['CC6.1', 'C1.2'],
                                     'HIPAA': ['164.312(a)(2)(iv)'],
                                     'ISO27001': ['A.9.4.3'],
                                     'WAFR': {'pillar': 'Security', 'controls': ['SEC07']},
@@ -82,7 +84,8 @@ def run_checks(session, exclude_defaults=False, regions=None):
                             severity='LOW', status='WARNING',
                             service=SERVICE, resource_id=sid,
                             resource_type='AWS::SecretsManager::Secret', region=region,
-                            frameworks={'WAFR': {'pillar': 'Security', 'controls': ['SEC07']}},
+                            frameworks={
+                                        'SOC2': ['CC6.5'],'WAFR': {'pillar': 'Security', 'controls': ['SEC07']}},
                             remediation='Verify if the secret is still needed. Delete unused secrets to reduce attack surface.',
                             remediation_tr='Gizli anahtarın hâlâ gerekli olup olmadığını doğrulayın. Kullanılmayanları silerek saldırı yüzeyini azaltın.',
                             details={'days_since_access': (now - last_accessed).days},

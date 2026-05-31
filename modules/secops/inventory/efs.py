@@ -37,6 +37,7 @@ def run_checks(session, exclude_defaults=False, regions=None):
                         service=SERVICE, resource_id=fs_arn,
                         resource_type='AWS::EFS::FileSystem', region=region,
                         frameworks={
+                                    'SOC2': ['CC6.7', 'C1.2'],
                             'CIS': ['2.4.1'], 'HIPAA': ['164.312(a)(2)(iv)'],
                             'ISO27001': ['A.10.1.1'],
                             'WAFR': {'pillar': 'Security', 'controls': ['SEC08']},
@@ -58,6 +59,7 @@ def run_checks(session, exclude_defaults=False, regions=None):
                             service=SERVICE, resource_id=fs_arn,
                             resource_type='AWS::EFS::FileSystem', region=region,
                             frameworks={
+                                        'SOC2': ['CC6.7'],
                                 'ISO27001': ['A.10.1.2'],
                                 'WAFR': {'pillar': 'Security', 'controls': ['SEC08']},
                             },
@@ -83,6 +85,7 @@ def run_checks(session, exclude_defaults=False, regions=None):
                         service=SERVICE, resource_id=fs_arn,
                         resource_type='AWS::EFS::FileSystem', region=region,
                         frameworks={
+                                    'SOC2': ['A1.2'],
                             'HIPAA': ['164.312(c)(1)'],
                             'WAFR': {'pillar': 'Reliability', 'controls': ['REL09']},
                         },

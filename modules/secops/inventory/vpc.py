@@ -35,7 +35,8 @@ def _check_default_vpc(ec2, region, exclude_defaults):
                 description_tr=f'{region} bölgesinde varsayılan VPC yok — iyi uygulama.',
                 severity='INFO', status='PASS', service=SERVICE,
                 resource_id=region, resource_type='AWS::EC2::VPC', region=region,
-                frameworks={'CIS': ['5.4'], 'WAFR': {'pillar': 'Security', 'controls': ['SEC05']}},
+                frameworks={'CIS': ['5.4'], 'SOC2': ['CC6.6'],
+                            'WAFR': {'pillar': 'Security', 'controls': ['SEC05']}},
                 remediation='No action required.', remediation_tr='Herhangi bir işlem gerekmiyor.',
             )]
         results = []
@@ -50,7 +51,8 @@ def _check_default_vpc(ec2, region, exclude_defaults):
                 severity='LOW', status='WARNING',
                 service=SERVICE, resource_id=vid, resource_type='AWS::EC2::VPC',
                 region=region, is_default_resource=True,
-                frameworks={'CIS': ['5.4'], 'WAFR': {'pillar': 'Security', 'controls': ['SEC05']}},
+                frameworks={'CIS': ['5.4'], 'SOC2': ['CC6.6'],
+                            'WAFR': {'pillar': 'Security', 'controls': ['SEC05']}},
                 remediation='Delete the default VPC if no resources depend on it.',
                 remediation_tr='Hiçbir kaynak bağımlı değilse varsayılan VPC\'yi silin.',
             ))
@@ -64,10 +66,15 @@ def _check_flow_logs(ec2, region):
     try:
         vpcs = ec2.describe_vpcs()['Vpcs']
         logs = ec2.describe_flow_logs()['FlowLogs']
-        logged_vpcs = {fl['ResourceId'] for fl in logs if fl.get('FlowLogStatus') == 'ACTIVE'}
+        active_logs_by_vpc = {}
+        for fl in logs:
+            if fl.get('FlowLogStatus') == 'ACTIVE' and fl.get('ResourceId'):
+                active_logs_by_vpc.setdefault(fl['ResourceId'], []).append(fl)
+
         for vpc in vpcs:
             vid = vpc['VpcId']
-            enabled = vid in logged_vpcs
+            vpc_logs = active_logs_by_vpc.get(vid, [])
+            enabled = bool(vpc_logs)
             findings.append(make_finding(
                 id=f'vpc_flow_logs_{vid}_{region}',
                 title=f'VPC flow logs enabled: {vid}',
@@ -77,11 +84,53 @@ def _check_flow_logs(ec2, region):
                 severity='MEDIUM', status='PASS' if enabled else 'FAIL',
                 service=SERVICE, resource_id=vid, resource_type='AWS::EC2::VPC',
                 region=region,
-                frameworks={'CIS': ['5.1'], 'HIPAA': ['164.312(b)'], 'ISO27001': ['A.12.4.1'],
+                frameworks={
+                            'SOC2': ['CC7.2', 'CC4.1'],'CIS': ['5.1'], 'HIPAA': ['164.312(b)'], 'ISO27001': ['A.12.4.1'],
                             'WAFR': {'pillar': 'Security', 'controls': ['SEC04']}},
                 remediation=f'EC2 Console → VPCs → {vid} → Flow logs → Create flow log.',
                 remediation_tr=f'EC2 Konsol → VPC\'ler → {vid} → Akış günlükleri → Akış günlüğü oluştur.',
             ))
+
+            # When flow logs exist, verify TrafficType=ALL — ACCEPT-only loses
+            # REJECT events that are essential for blocked-attack investigations.
+            if enabled:
+                traffic_types = {fl.get('TrafficType', 'ALL') for fl in vpc_logs}
+                captures_all = 'ALL' in traffic_types
+                findings.append(make_finding(
+                    id=f'vpc_flow_log_traffic_type_{vid}_{region}',
+                    title=f'VPC flow log captures ALL traffic: {vid}',
+                    title_tr=f'VPC akış günlüğü TÜM trafiği yakalıyor: {vid}',
+                    description=(
+                        f'VPC {vid} flow log captures: {", ".join(sorted(traffic_types))}. '
+                        f'ACCEPT-only logs hide blocked / rejected connections, which are '
+                        f'critical signals for detecting attempted attacks and misconfigured SGs.'
+                    ),
+                    description_tr=(
+                        f'{vid} VPC akış günlüğü yakalanan trafik: {", ".join(sorted(traffic_types))}. '
+                        f'Yalnızca ACCEPT günlükleri engellenmiş / reddedilmiş bağlantıları gizler; '
+                        f'bu bağlantılar saldırı denemelerini ve yanlış yapılandırılmış SG\'leri '
+                        f'tespit etmek için kritik sinyallerdir.'
+                    ),
+                    severity='LOW', status='PASS' if captures_all else 'WARNING',
+                    service=SERVICE, resource_id=vid, resource_type='AWS::EC2::FlowLog',
+                    region=region,
+                    frameworks={
+                        'ISO27001': ['A.12.4.1', 'A.12.4.3'],
+                        'SOC2':     ['CC7.2'],
+                        'WAFR':     {'pillar': 'Security', 'controls': ['SEC04']},
+                    },
+                    remediation=(
+                        f'EC2 → VPCs → {vid} → Flow logs → Create flow log with '
+                        f'Filter = ALL. Existing ACCEPT-only flow logs cannot be modified — '
+                        f'create a new one and remove the old.'
+                    ),
+                    remediation_tr=(
+                        f'EC2 → VPC\'ler → {vid} → Akış günlükleri → Filter = ALL ile yeni '
+                        f'akış günlüğü oluştur. Mevcut yalnızca-ACCEPT akış günlükleri '
+                        f'değiştirilemez — yenisini oluşturup eskisini kaldırın.'
+                    ),
+                    details={'traffic_types': sorted(traffic_types)},
+                ))
     except Exception as exc:
         findings.append(not_available(f'vpc_flow_logs_{region}', SERVICE, str(exc)))
     return findings
@@ -106,7 +155,8 @@ def _check_default_sg(ec2, region, exclude_defaults):
                 severity='MEDIUM', status='FAIL' if has_rules else 'PASS',
                 service=SERVICE, resource_id=sgid, resource_type='AWS::EC2::SecurityGroup',
                 region=region, is_default_resource=True,
-                frameworks={'CIS': ['5.5'], 'ISO27001': ['A.13.1.1'],
+                frameworks={
+                            'SOC2': ['CC6.6'],'CIS': ['5.5'], 'ISO27001': ['A.13.1.1'],
                             'WAFR': {'pillar': 'Security', 'controls': ['SEC05']}},
                 remediation='Remove all inbound/outbound rules from the default security group.',
                 remediation_tr='Varsayılan güvenlik grubundaki tüm gelen/giden kuralları kaldırın.',
@@ -158,6 +208,7 @@ def _check_gateway_endpoints(ec2, region):
                     region=region,
                     frameworks={
                         'CIS': ['5.6'], 'ISO27001': ['A.13.1.1'],
+                        'SOC2': ['CC6.6'],
                         'WAFR': {'pillar': 'Security', 'controls': ['SEC05', 'COST04']},
                     },
                     remediation=(
@@ -217,6 +268,7 @@ def _check_unused_security_groups(ec2, region):
                     resource_name=sg_name, region=region,
                     frameworks={
                         'CIS': ['5.5'], 'HIPAA': ['164.312(a)(1)'], 'ISO27001': ['A.13.1.1'],
+                        'SOC2': ['CC6.6'],
                         'WAFR': {'pillar': 'Security', 'controls': ['SEC05']},
                     },
                     remediation=(

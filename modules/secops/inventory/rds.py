@@ -39,6 +39,7 @@ def _check_db(db, region):
         ('rds_encryption', 'RDS storage encrypted',         'RDS depolama şifrelenmiş',
          db.get('StorageEncrypted', False), 'HIGH',
          {'CIS': ['2.3.1'], 'HIPAA': ['164.312(a)(2)(iv)'], 'ISO27001': ['A.10.1.1'],
+          'SOC2': ['CC6.7', 'C1.2'],
           'WAFR': {'pillar': 'Security', 'controls': ['SEC06']}},
          'Enable storage encryption when creating RDS (cannot be changed after creation).',
          'RDS oluştururken depolama şifrelemesini etkinleştirin (oluşturulduktan sonra değiştirilemez).'),
@@ -46,19 +47,22 @@ def _check_db(db, region):
         ('rds_backups',    'RDS automated backups enabled', 'RDS otomatik yedeklemeler aktif',
          db.get('BackupRetentionPeriod', 0) > 0, 'MEDIUM',
          {'CIS': ['2.3.2'], 'ISO27001': ['A.12.3.1'],
+          'SOC2': ['A1.2'],
           'WAFR': {'pillar': 'Reliability', 'controls': ['REL09']}},
          f'Modify {dbid} → Backup retention period → Set to ≥ 7 days.',
          f'{dbid} DB\'yi Düzenle → Yedekleme saklama süresi → ≥ 7 gün olarak ayarlayın.'),
 
         ('rds_multiaz',    'RDS Multi-AZ enabled',          'RDS Multi-AZ aktif',
          db.get('MultiAZ', False), 'MEDIUM',
-         {'ISO27001': ['A.17.2.1'], 'WAFR': {'pillar': 'Reliability', 'controls': ['REL02']}},
+         {'ISO27001': ['A.17.2.1'], 'SOC2': ['A1.2'],
+          'WAFR': {'pillar': 'Reliability', 'controls': ['REL02']}},
          f'Modify {dbid} → Availability & Durability → Enable Multi-AZ.',
          f'{dbid} DB\'yi Düzenle → Kullanılabilirlik → Multi-AZ\'ı etkinleştir.'),
 
         ('rds_deletion',   'RDS deletion protection enabled', 'RDS silme koruması aktif',
          db.get('DeletionProtection', False), 'MEDIUM',
-         {'ISO27001': ['A.12.3.1'], 'WAFR': {'pillar': 'Reliability', 'controls': ['REL09']}},
+         {'ISO27001': ['A.12.3.1'], 'SOC2': ['A1.2', 'PI1.4'],
+          'WAFR': {'pillar': 'Reliability', 'controls': ['REL09']}},
          f'Modify {dbid} → Deletion protection → Enable.',
          f'{dbid} DB\'yi Düzenle → Silme koruması → Etkinleştir.'),
     ]
@@ -87,7 +91,8 @@ def _check_db(db, region):
         severity='MEDIUM', status='PASS' if iam_auth else 'WARNING',
         service=SERVICE, resource_id=dbid,
         resource_type='AWS::RDS::DBInstance', region=region,
-        frameworks={'CIS': ['2.3.3'], 'HIPAA': ['164.312(d)'], 'ISO27001': ['A.9.2.1'],
+        frameworks={
+                    'SOC2': ['CC6.1'],'CIS': ['2.3.3'], 'HIPAA': ['164.312(d)'], 'ISO27001': ['A.9.2.1'],
                     'WAFR': {'pillar': 'Security', 'controls': ['SEC03']}},
         remediation=f'Modify {dbid} → Enable IAM DB authentication for token-based access instead of passwords.',
         remediation_tr=f'{dbid} DB\'yi Düzenle → Parola yerine token tabanlı erişim için IAM DB kimlik doğrulamasını etkinleştirin.',
@@ -105,7 +110,8 @@ def _check_db(db, region):
         severity='MEDIUM', status='PASS' if retention_ok else 'WARNING',
         service=SERVICE, resource_id=dbid,
         resource_type='AWS::RDS::DBInstance', region=region,
-        frameworks={'CIS': ['2.3.2'], 'HIPAA': ['164.308(a)(7)(ii)(A)'], 'ISO27001': ['A.12.3.1'],
+        frameworks={
+                    'SOC2': ['A1.2'],'CIS': ['2.3.2'], 'HIPAA': ['164.308(a)(7)(ii)(A)'], 'ISO27001': ['A.12.3.1'],
                     'WAFR': {'pillar': 'Reliability', 'controls': ['REL09']}},
         remediation=f'Modify {dbid} → Backup retention period → Set to >= 7 days.',
         remediation_tr=f'{dbid} DB\'yi Düzenle → Yedekleme saklama süresi → >= 7 gün olarak ayarlayın.',
@@ -123,10 +129,46 @@ def _check_db(db, region):
         severity='LOW', status='PASS' if auto_upgrade else 'WARNING',
         service=SERVICE, resource_id=dbid,
         resource_type='AWS::RDS::DBInstance', region=region,
-        frameworks={'ISO27001': ['A.12.6.1'],
+        frameworks={
+                    'SOC2': ['CC6.7'],'ISO27001': ['A.12.6.1'],
                     'WAFR': {'pillar': 'Security', 'controls': ['SEC06']}},
         remediation=f'Modify {dbid} → Maintenance → Enable auto minor version upgrade.',
         remediation_tr=f'{dbid} DB\'yi Düzenle → Bakım → Otomatik küçük sürüm yükseltmesini etkinleştirin.',
+    ))
+
+    # --- Performance Insights (forensics + observability) ---
+    pi_enabled = db.get('PerformanceInsightsEnabled', False)
+    findings.append(make_finding(
+        id=f'rds_performance_insights_{dbid}_{region}',
+        title=f'RDS Performance Insights enabled: {dbid}',
+        title_tr=f'RDS Performance Insights aktif: {dbid}',
+        description=(
+            f'RDS instance {dbid} in {region} {"has" if pi_enabled else "does not have"} '
+            f'Performance Insights enabled. Performance Insights provides query-level metrics '
+            f'and is invaluable for detecting anomalous DB usage patterns during incident response.'
+        ),
+        description_tr=(
+            f'{region} bölgesindeki RDS instance {dbid} için Performance Insights '
+            f'{"etkin" if pi_enabled else "etkin değil"}. '
+            f'Performance Insights, sorgu seviyesinde metrikler sağlar ve olay müdahalesi sırasında '
+            f'anormal DB kullanım desenlerinin tespiti için paha biçilmezdir.'
+        ),
+        severity='LOW', status='PASS' if pi_enabled else 'WARNING',
+        service=SERVICE, resource_id=dbid,
+        resource_type='AWS::RDS::DBInstance', region=region,
+        frameworks={
+            'SOC2':     ['CC7.2', 'CC4.1'],
+            'ISO27001': ['A.12.4.1'],
+            'WAFR':     {'pillar': 'Operational Excellence', 'controls': ['OPS04']},
+        },
+        remediation=(
+            f'Modify {dbid} → Monitoring → Enable Performance Insights. 7-day retention '
+            f'is free; longer retention has additional cost.'
+        ),
+        remediation_tr=(
+            f'{dbid} DB\'yi Düzenle → İzleme → Performance Insights etkinleştir. '
+            f'7 günlük saklama ücretsiz; daha uzun saklama ek maliyetli.'
+        ),
     ))
 
     return findings

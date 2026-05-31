@@ -211,6 +211,77 @@ def api_cache_status():
     return jsonify({'status': 'ok', 'cache': cache.get_cache_status()})
 
 
+# ---------------------------------------------------------------------------
+# API — Suppressions (accepted-risk / false-positive)
+# ---------------------------------------------------------------------------
+
+@secops_bp.route('/secops/api/suppressions')
+def api_suppressions_list():
+    profile = request.args.get('profile', '')
+    if not profile or not _valid_profile(profile):
+        return jsonify({'status': 'error', 'error': 'Valid profile required'}), 400
+    return jsonify({'status': 'ok', 'suppressions': cache.load_suppressions(profile)})
+
+
+@secops_bp.route('/secops/api/suppress', methods=['POST'])
+def api_suppress_add():
+    data        = request.get_json(silent=True) or {}
+    profile     = data.get('profile', '')
+    finding_id  = (data.get('finding_id') or '').strip()
+    reason      = (data.get('reason') or '').strip()
+    user        = (data.get('user') or '').strip()
+
+    if not profile or not _valid_profile(profile):
+        return jsonify({'status': 'error', 'error': 'Valid profile required'}), 400
+    if not finding_id or not _FILENAME_RE.match(finding_id):
+        return jsonify({'status': 'error', 'error': 'Valid finding_id required'}), 400
+    if len(reason) > 1000:
+        return jsonify({'status': 'error', 'error': 'Reason too long (max 1000 chars)'}), 400
+
+    entry = cache.add_suppression(profile, finding_id, reason, user)
+
+    # Mutate cached scan in-place so UI reflects suppression without rescan
+    results, _ = cache.load_scan(profile)
+    if results:
+        for f in results.get('findings', []):
+            if f.get('id') == finding_id and f.get('status') in ('PASS', 'FAIL', 'WARNING'):
+                f['suppression'] = {
+                    'reason': entry['reason'], 'user': entry['user'],
+                    'created_at': entry['created_at'],
+                    'prior_status': f.get('status'),
+                }
+                f['status'] = 'SUPPRESSED'
+        cache.save_scan(profile, results)
+
+    return jsonify({'status': 'ok', 'suppression': entry})
+
+
+@secops_bp.route('/secops/api/suppress', methods=['DELETE'])
+def api_suppress_remove():
+    data        = request.get_json(silent=True) or {}
+    profile     = data.get('profile', '')
+    finding_id  = (data.get('finding_id') or '').strip()
+
+    if not profile or not _valid_profile(profile):
+        return jsonify({'status': 'error', 'error': 'Valid profile required'}), 400
+    if not finding_id or not _FILENAME_RE.match(finding_id):
+        return jsonify({'status': 'error', 'error': 'Valid finding_id required'}), 400
+
+    removed = cache.remove_suppression(profile, finding_id)
+
+    # Restore prior_status on cached findings
+    results, _ = cache.load_scan(profile)
+    if results:
+        for f in results.get('findings', []):
+            if f.get('id') == finding_id and f.get('status') == 'SUPPRESSED':
+                prior = (f.get('suppression') or {}).get('prior_status', 'FAIL')
+                f['status'] = prior
+                f['suppression'] = None
+        cache.save_scan(profile, results)
+
+    return jsonify({'status': 'ok', 'removed': removed})
+
+
 @secops_bp.route('/secops/api/scan-history/delete', methods=['POST'])
 def api_scan_history_delete():
     """Delete a cached scan result for a profile."""
