@@ -64,7 +64,9 @@
 |---|---|
 | **Multi-Account Support** | Analyze any number of AWS profiles from `~/.aws/config` (including SSO) |
 | **FinOps Cost Intelligence** | Monthly costs, service breakdown, region distribution, EC2 inventory, budget tracking |
-| **Security Posture Assessment** | 24 AWS services scanned against CIS, HIPAA, ISO 27001, AWS WAFR frameworks |
+| **Security Posture Assessment** | 29 AWS services scanned against CIS, HIPAA, ISO 27001, SOC 2, AWS WAFR frameworks |
+| **AWS Reference (auth-free)** | Service catalog + region/Local-Zone latency matrix — no AWS credentials required |
+| **AWS News** | Fuzzy-searchable AWS What's New feed with category & date filters |
 | **Resource Inventory** | 150+ service collectors discover every resource across all opted-in regions |
 | **Network Topology** | VPC architecture visualization — subnets, peering, transit gateways, security groups |
 | **Well-Architected Advice** | 6-pillar WAFR assessment combining security findings, inventory, and cost data |
@@ -471,15 +473,33 @@ SCANBOX_DEMO=1 python app.py
 
 See **[CHANGELOG.md](CHANGELOG.md)** for a detailed version history and **[VERSIONING.md](VERSIONING.md)** for the versioning strategy.
 
-### Latest: v1.1.0 (March 2026)
+### Latest: v2.0.0 (May 2026)
 
-- 7 core modules: FinOps, SecOps, MapInventory, Topology, Advice, Health, About
-- 24 SecOps security check modules across 4 compliance frameworks
+**MAJOR release** per [VERSIONING.md](VERSIONING.md) — two new sidebar modules and a redesigned Topology view.
+
+#### What's new in v2.0.0
+
+- **AWS Reference module (`/awsref`)** — Two profile-independent, auth-free views:
+  - **AWS Services tab** — service catalog (37 services) filtered by selected region or Local Zone, with one-click TCP latency probe (p50 / p95 ms) and scope badges (`lz-data-plane` / `regional` / `global` / `lz-link-local`).
+  - **Region Matrix tab** — 29 AWS public regions + 32 known Local Zones with TCP-handshake latency from the host running ScanBox.
+  - Deliberately does **not** import `boto3` and **does not** require any AWS credentials, IAM role, SSO session, or `AWS_PROFILE`. ScanBox can be deployed on any internet-connected machine.
+- **AWS News module (`/news`)** — Fuzzy-searchable AWS "What's New" feed (Fuse.js, `Cmd/Ctrl + K`), multi-select **Categories** dropdown + radio **Date** filter (All / 7 / 14 / 30 days), active-filter pill row, auto-recomputed `isNew` badges, bilingual TR + EN, theme-aware. Backend uses stdlib only (no new pip deps).
+- **Topology — Architecture View** — auto-generated draw.io-style layered diagram (Internet → Edge → VPC → Subnets → Workloads → Data Plane) with edge inference from security groups, route tables, and ENI bindings; ships with the AWS Architecture Icon set.
+- **SecOps — 5 new service inventory modules** (24 → **29**): **Backup**, **Inspector V2**, **Macie**, **OpenSearch**, **ElastiCache**. All auto-skipped via Cost Explorer when the account doesn't use the service.
+- **SecOps — SOC 2 Type II framework** (43 controls across CC / A / C / PI pillars) — now the **5th compliance framework** alongside CIS, HIPAA, ISO 27001, and AWS WAFR. Severity-weighted scoring (`SEV_WEIGHTS`) replaces unweighted averages so a single CRITICAL FAIL has real impact.
+- **SecOps — Suppression flow** for accepted-risk / false-positive findings (audit-trail reason persisted to `modules/secops/data/suppressions/<profile>.json`), plus **finding-delta badges** (`NEW` / `FIXED` / `REGR`) vs the previous scan.
+- **FinOps — Savings Opportunities dashboard** + 11 read-only collectors (unattached EBS, unassociated EIPs, idle NAT GWs, empty LBs, orphan RDS snapshots, low-CPU EC2, SP/RI coverage, forecast, tag coverage) and 8 new cost-advice templates with dynamic dollar amounts.
+- **Fixed** — `/awsref` Service Endpoints table now scrolls inside its own card with sticky header + filter row; "About this view" panel renders correctly in both TR and EN on all four tabs (25 missing EN translations added; description `<p>` tags switched from `data-i18n` to `data-i18n-html`).
+
+#### Module count
+
+- **9 core modules**: FinOps, SecOps, MapInventory, Topology, Advice, **AWS Reference**, **AWS News**, Health, About
+- **29** SecOps security check modules across **5** compliance frameworks (CIS, HIPAA, ISO 27001, **SOC 2**, AWS WAFR)
 - 150+ MapInventory resource collectors
-- HTML/CSV/PDF report generation for all modules
-- Dark/light theme with OS preference detection
+- HTML / CSV / PDF report generation for all modules
+- Dark / light theme with OS preference detection
 - Bilingual UI (Turkish / English)
-- Demo mode for safe showcasing
+- Demo mode (`SCANBOX_DEMO=1`) for safe showcasing
 
 ### Version Numbering
 
