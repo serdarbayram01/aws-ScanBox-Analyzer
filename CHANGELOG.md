@@ -14,6 +14,60 @@ For versioning rules and release process, see [VERSIONING.md](VERSIONING.md).
 
 ---
 
+## [2.1.0] - 2026-06-01
+
+### Added — Framework control catalogs (CIS v3.0 / HIPAA / ISO 27001:2022)
+
+Three new reference catalogs ship in `modules/secops/frameworks/`. Each is the
+authoritative published control list for one compliance standard, with a
+`CONTROLS` dict, helper functions (`title_for(id, lang)`, `known(id)`,
+`all_ids()`), and an `OLD_TO_NEW` legacy-ID migration map.
+
+- `cis_v3_catalog.py` — **62 controls** (CIS AWS Foundations Benchmark v3.0.0)
+- `iso27001_catalog.py` — **93 controls** (ISO/IEC 27001:2022 Annex A)
+- `hipaa_catalog.py` — **51 controls** (HIPAA Security + Breach Notification Rule, 45 CFR Part 164)
+
+Auto-generated from cloud-audit's MIT-licensed JSON catalogs (citation in each file's docstring).
+
+### Added — Runtime framework-ID translator
+
+`modules/secops/scanner.py:_aggregate()` now runs a 12-line in-place ID translator at the start of the aggregation step. It walks every finding's `frameworks['CIS']`, `['ISO27001']`, and `['HIPAA']` list and rewrites legacy IDs to their modern equivalents using the catalogs' `OLD_TO_NEW` maps.
+
+- **Idempotent** — modern IDs pass through unchanged.
+- **Best-effort** — unmapped IDs fall through and remain visible in the drift matrix for future cleanup.
+- **Merger-aware** — when multiple legacy controls merge into one modern control (e.g. ISO 2013 A.12.4.1/2/3 → 2022 A.8.15), the translator de-duplicates so the framework score remains honest.
+- **Zero per-module work** — applied at scan-time, so the 29 inventory modules' inline `frameworks={'CIS': [...]}` declarations are untouched.
+
+#### Drift matrix — before vs after
+
+| Framework | Inline IDs | Missing-before | Missing-after | Improvement |
+|---|---|---|---|---|
+| CIS v3.0 | 57 | 17 (29%) | **6 (10%)** | **11 IDs fixed (65%)** |
+| ISO 27001:2022 | 29 | 29 (100%) | **4 (14%)** | **25 IDs fixed (86%)** |
+| HIPAA | 13 | 4 (30%) | **0 (0%)** | **Full coverage** |
+
+Before this release the **ISO 27001 compliance gauge was 100% scoring against 2013 IDs that no longer exist in the 2022 standard.** It now scores against 2022 controls for 86% of references, with only 4 rare 2013 IDs still untranslated.
+
+### Added — SecOps Dashboard "skipped checks" banner is now expandable
+
+The `N checks skipped due to insufficient permissions` banner at the top of the SecOps Dashboard is now a `<details>` element. Click to expand → 3-column table:
+
+- **Service** — the AWS service (e.g. `cloudfront`)
+- **Check** — the check's TR/EN title + canonical id (e.g. `cf_check_unavailable`)
+- **Reason** — the original AWS error stripped of the `Could not run check:` prefix (e.g. `AccessDenied: User ... is not authorized to perform cloudfront:ListDistributions`)
+
+Data source: existing `_allFindings.filter(status==='NOT_AVAILABLE')` — no backend or schema change. JS-only enhancement; users hard-refresh to pick it up.
+
+### Notes
+
+- **VERSION 2.0.0 → 2.1.0** — MINOR per VERSIONING.md (new internal capability, backward-compatible, improved scoring accuracy, no breaking API/UI changes).
+- SOC2 catalog is unchanged — the pre-existing `soc2_catalog.py` already covers SOC 2 Type II with 43 controls and `pillar_for(id)`.
+- WAFR is unchanged — uses a nested `{pillar, controls}` shape per finding, not a flat ID list, so it bypasses the translator.
+- HIPAA catalog includes 4 widened entries (`164.308(a)(3)`, `164.308(a)(7)(ii)(A)`, `164.308(a)(7)(ii)(B)`, `164.402`) that cloud-audit's JSON only had at deeper sub-levels.
+- 10 IDs remain unmapped — 6 CIS range-strings (`3.1–3.14`, `2.5.1–2.5.3`) which are non-standard and need source-level cleanup, and 4 rare ISO 2013 IDs. Future patch territory.
+
+---
+
 ## [2.0.0] - 2026-05-15
 
 ### Added — AWS Reference module (no AWS credentials required)

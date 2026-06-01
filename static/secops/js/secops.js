@@ -580,15 +580,69 @@ function renderMetricCards(summary, profile, scanTime, elapsed) {
       </div>
     </div>`).join('');
 
-  // NOT_AVAILABLE banner — warn about skipped checks
+  // NOT_AVAILABLE banner — list the skipped checks so the user can act on them.
+  // Data source: _allFindings filtered to status='NOT_AVAILABLE' — each carries
+  // the service name, check title (TR + EN), and the original error message
+  // inside `description`/`description_tr` ("Could not run check: <error>").
   const naBanner = document.getElementById('naBanner');
   if (naBanner) {
     if (naCount > 0) {
-      naBanner.style.display = 'flex';
-      naBanner.innerHTML = `<div style="display:flex;align-items:center;gap:8px;padding:10px 16px;background:rgba(107,114,128,0.1);border:1px solid rgba(107,114,128,0.3);border-radius:8px;font-size:12px;color:var(--text-secondary)">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-        <span><strong>${naCount}</strong> ${t('secops_na_banner') || 'checks skipped due to insufficient permissions'}</span>
-      </div>`;
+      const naItems = (_allFindings || []).filter(f => f.status === 'NOT_AVAILABLE');
+      const lang = (localStorage.getItem('finops_lang') || 'tr');
+      const showLbl = t('secops_na_show_details') || (lang === 'tr' ? 'Detayları göster' : 'Show details');
+      const hideLbl = t('secops_na_hide_details') || (lang === 'tr' ? 'Detayları gizle' : 'Hide details');
+      const colSvc  = t('secops_na_col_service') || (lang === 'tr' ? 'Servis' : 'Service');
+      const colChk  = t('secops_na_col_check')   || (lang === 'tr' ? 'Kontrol'  : 'Check');
+      const colWhy  = t('secops_na_col_reason')  || (lang === 'tr' ? 'Sebep'    : 'Reason');
+
+      const rows = naItems.map(f => {
+        const title = lang === 'tr' ? (f.title_tr || f.title) : (f.title || f.title_tr);
+        const desc  = lang === 'tr' ? (f.description_tr || f.description) : (f.description || f.description_tr);
+        // Strip the "Could not run check: " / "Kontrol çalıştırılamadı: " prefix
+        const reason = (desc || '').replace(/^(Could not run check:|Kontrol çalıştırılamadı:)\s*/i, '');
+        return `<tr>
+          <td style="padding:6px 10px;border-bottom:1px solid var(--border);font-family:var(--font-mono);font-size:11px;white-space:nowrap;color:var(--text-secondary)">${_escHtml(f.service || '—')}</td>
+          <td style="padding:6px 10px;border-bottom:1px solid var(--border);font-size:11.5px">
+            <div style="color:var(--text-primary);font-weight:600">${_escHtml(title || f.id)}</div>
+            <div style="color:var(--text-muted);font-family:var(--font-mono);font-size:10.5px;margin-top:2px">${_escHtml(f.id || '')}</div>
+          </td>
+          <td style="padding:6px 10px;border-bottom:1px solid var(--border);font-size:11px;color:var(--text-muted);word-break:break-word">${_escHtml(reason || '—')}</td>
+        </tr>`;
+      }).join('');
+
+      naBanner.style.display = 'block';
+      naBanner.innerHTML = `
+        <details style="background:rgba(107,114,128,0.1);border:1px solid rgba(107,114,128,0.3);border-radius:8px">
+          <summary style="display:flex;align-items:center;gap:8px;padding:10px 16px;cursor:pointer;font-size:12px;color:var(--text-secondary);list-style:none;user-select:none">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            <span><strong>${naCount}</strong> ${t('secops_na_banner') || 'checks skipped due to insufficient permissions'}</span>
+            <span style="margin-left:auto;color:var(--accent);font-weight:600;font-size:11px">▾ <span class="na-toggle-show">${showLbl}</span><span class="na-toggle-hide" style="display:none">${hideLbl}</span></span>
+          </summary>
+          <div style="padding:0 16px 12px;max-height:320px;overflow-y:auto">
+            <table style="width:100%;border-collapse:collapse;margin-top:6px">
+              <thead>
+                <tr>
+                  <th style="text-align:left;padding:6px 10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;color:var(--text-muted);border-bottom:1px solid var(--border)">${_escHtml(colSvc)}</th>
+                  <th style="text-align:left;padding:6px 10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;color:var(--text-muted);border-bottom:1px solid var(--border)">${_escHtml(colChk)}</th>
+                  <th style="text-align:left;padding:6px 10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;color:var(--text-muted);border-bottom:1px solid var(--border)">${_escHtml(colWhy)}</th>
+                </tr>
+              </thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>
+        </details>`;
+      // Toggle the "Show / Hide" label on open/close
+      const det = naBanner.querySelector('details');
+      if (det) {
+        det.addEventListener('toggle', () => {
+          const showEl = det.querySelector('.na-toggle-show');
+          const hideEl = det.querySelector('.na-toggle-hide');
+          if (showEl && hideEl) {
+            showEl.style.display = det.open ? 'none' : '';
+            hideEl.style.display = det.open ? '' : 'none';
+          }
+        });
+      }
     } else {
       naBanner.style.display = 'none';
     }

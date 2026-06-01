@@ -19,6 +19,7 @@ from .inventory import (
 from .inventory.base import make_finding
 from . import cache
 from .frameworks import soc2_catalog
+from .frameworks import iso27001_catalog, cis_v3_catalog, hipaa_catalog
 
 # Module-level scan progress tracker, keyed by profile name
 _scan_progress = {}
@@ -558,6 +559,25 @@ def _compute_deltas(findings: list, prev_results: dict | None) -> list:
 
 def _aggregate(findings, errors, profile, account_id,
                 exclude_defaults, elapsed, skipped=None) -> dict:
+
+    # Framework ID migration — translate legacy control IDs to modern versions
+    # so the compliance gauges (CIS / ISO27001 / HIPAA) score against the
+    # catalogs that ScanBox now ships (CIS v3.0, ISO 27001:2022, HIPAA). The
+    # translation is in-place + idempotent + best-effort: unmapped IDs fall
+    # through unchanged. Structure preserved; only the IDs in finding["frameworks"]
+    # lists are rewritten. SOC2 + WAFR are untouched here (SOC2 has its own
+    # catalog; WAFR uses a nested {pillar, controls} shape).
+    _FRAMEWORK_TRANSLATORS = {
+        'CIS':      cis_v3_catalog.translate_list,
+        'ISO27001': iso27001_catalog.translate_list,
+        'HIPAA':    hipaa_catalog.translate_list,
+    }
+    for f in findings:
+        fwdict = f.get('frameworks') or {}
+        for fwkey, xlator in _FRAMEWORK_TRANSLATORS.items():
+            ids = fwdict.get(fwkey)
+            if isinstance(ids, list) and ids:
+                fwdict[fwkey] = xlator(ids)
 
     # Apply default-resource exclusion filter
     visible = [f for f in findings

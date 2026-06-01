@@ -473,7 +473,24 @@ SCANBOX_DEMO=1 python app.py
 
 See **[CHANGELOG.md](CHANGELOG.md)** for a detailed version history and **[VERSIONING.md](VERSIONING.md)** for the versioning strategy.
 
-### Latest: v2.0.0 (May 2026)
+### Latest: v2.1.0 (June 2026)
+
+**MINOR release** — Framework catalogs + runtime ID translator for **dramatically more accurate compliance scoring**, plus an expandable "skipped checks" banner.
+
+- **3 new framework catalogs** under `modules/secops/frameworks/`:
+  - **CIS AWS v3.0** — 62 controls
+  - **ISO/IEC 27001:2022** — 93 Annex A controls
+  - **HIPAA** — 51 Security + Breach Notification Rule controls
+- **Runtime ID translator** in `scanner._aggregate()` rewrites legacy 2013/v2.x finding IDs to modern equivalents at scan-time. **Zero per-module work** — the 29 inventory modules' inline framework references stay untouched.
+- **Before/after impact:**
+  - **ISO 27001 gauge: 100% → 14% mismatch** (86% of inline IDs now properly attributed to the 2022 standard)
+  - CIS gauge: 29% → 10% mismatch
+  - HIPAA gauge: 30% → 0% mismatch (full coverage)
+- **SecOps "skipped checks" banner is now expandable** — click to see exactly which checks were skipped, on which service, and the original AWS error message. No backend change.
+
+See [CHANGELOG.md](CHANGELOG.md) for the full v2.1.0 entry including the drift matrix and the OLD_TO_NEW crosswalk methodology.
+
+### v2.0.0 (May 2026)
 
 **MAJOR release** per [VERSIONING.md](VERSIONING.md) — two new sidebar modules and a redesigned Topology view.
 
